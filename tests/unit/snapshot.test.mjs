@@ -18,6 +18,7 @@ const inconsistentEligibility={
  teamless:{team:null},
  unsupported:{fantasyPositions:['DB'],policyPosition:null},
  falseBase:{eligibleBase:false,eligible:false},
+ isolatedBase:{eligibleBase:false},
  falseRanked:{eligible:false},
  unranked:{adp:null,adpBand:null},
 };

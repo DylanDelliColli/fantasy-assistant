@@ -100,6 +100,7 @@ test('one canonical ECR import remains usable with lower quarantine and still re
 test('saved eligibility rejects contradictory prepared-file edits without rewriting bytes',async t=>{
  const s=await setup(t);const original=await s.prepare(),file=join(s.dir,'snapshot.json');
  const changes={inactive:{active:false},teamless:{team:null},unsupported:{fantasyPositions:['DB'],policyPosition:null},
+  isolatedBase:{eligibleBase:false},
   falseBase:{eligibleBase:false,eligible:false},falseRanked:{eligible:false},unranked:{adp:null,ecrRank:null,ecrTier:null,ecrSourceId:null,adpBand:null}};
  for(const [name,change] of Object.entries(changes)){
   await t.test(name,async()=>{

@@ -69,7 +69,7 @@ Integration detail for RESEARCH: roster ID 5 is not draft slot 1. The league
 record's `settings.draft_rounds` is 3 while the active draft's `settings.rounds`
 is 13. Preserve this distinction when selecting fields and defining tests.
 
-### Narrowest valuable release — proposal
+### Narrowest valuable release
 
 A personal draft assistant that loads the actual league rules and draft state,
 then presents three available pick candidates with short, source-grounded
@@ -81,7 +81,7 @@ operator's next two picks and account for consecutive selections at the turn.
 Approved presentation: a browser page kept beside Sleeper, showing the shortlist
 without requiring a new question each turn.
 
-### User stories and proposed acceptance scenarios
+### User stories and acceptance scenarios
 
 - **US-DRAFT-01 — Prepare:** Review a league-specific draft plan before the
   draft. Given the actual scoring, roster requirements, and draft position,
@@ -98,16 +98,16 @@ without requiring a new question each turn.
   explicit stale-data indication rather than presenting it as current.
 - **US-SEASON-01 — Manage the team:** Support season-long decisions later.
   Retained as product direction; no season-management implementation is in
-  tonight's proposed scope.
+  tonight's approved scope.
 
-### Proposed non-goals
+### Non-goals
 
 Automated picks or transactions; weekly lineups, waivers, and trade advice for
 tonight; other platforms or sports; multi-user accounts; multi-league dashboards;
 an independent projection model. Additional draft formats beyond the operator's
 actual league require a later scope decision.
 
-### One epic product success metric — proposal
+### One epic product success metric
 
 Before the real draft, the operator can identify a preferred available player
 within 10 seconds of consulting the assistant in each of three consecutive
@@ -169,3 +169,169 @@ Obtaining a usable current ranking snapshot and validating the
 Full remains the selected tier. FRAMING is approved; RESEARCH is authorized.
 No architecture or implementation decisions are approved. Implementation
 children and execution remain downstream of the required planning gates.
+
+## RESEARCH
+
+Status: Complete for operator review; approval pending. Upstream authority is
+the FRAMING section approved on 2026-09-08 and committed at `5a4fb23`.
+
+Producer: the default researcher role was supplied by the isolated
+`rankings_research` subagent for sources, while the orchestrator verified
+Sleeper integration and assembled this section. Research bead `fantasy-p55.1`
+records the source investigation, probe commands, and detailed mapping audit.
+The parent reran its no-network audit and independently checked that the top
+400 matches are unique existing Sleeper IDs.
+
+### Recommended direction
+
+Use a private, dated snapshot of the public FantasyPros 2026 half-PPR draft
+rankings for player value and tiers. Add Fantasy Football Calculator half-PPR
+ADP as optional market context. Prepare these inputs before the draft; consult
+Sleeper for league settings, eligibility, roster ownership, and picks.
+
+Use deterministic, source-grounded reasons during a turn, with current roster
+needs and the next two selections visible. No model service needs to answer
+before the shortlist can appear. A small local browser app is the proposed
+delivery path, subject to the operator's local-versus-hosted answer.
+
+Treat draft sync as best effort with a visible last successful check, observed
+pick count, and reversible local controls for a player already taken while the
+feed catches up. These controls affect this assistant only. The exact state
+reconciliation and controls are proposed for the architecture gate.
+
+### Evidence and implications
+
+| Finding | Verified evidence | Implication / story |
+| --- | --- | --- |
+| Current expert ranking input is accessible | Public [half-PPR page](https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php) returned HTML with JSON in `var ecrData`: year 2026, week 0, scoring HALF, 978 unique players, 134 experts, tiers 1–16. Provider update/check timestamp: 2026-09-08 16:12:41 UTC. | A no-login page snapshot is technically available for US-DRAFT-01/02. It is not a supported API contract; validate before replacing a usable snapshot. |
+| Expert update times vary | FantasyPros describes its latest-update display as a check for revised rankings; individual expert timestamps differ. | Record source update/check and fetch times separately. Do not claim all expert opinions or injury news are current to the fetch second (US-DRAFT-03). |
+| Canonical ID matching is feasible | Top 400 ECR players map uniquely to active Sleeper entries: 110 RB, 142 WR, 59 TE, 43 QB, 25 DEF, 21 K. Parent checked uniqueness. All 38 source K and 32 DEF map across the full list. | Coverage comfortably exceeds the 182-pick draft. Include kicker/defense coverage when validating US-DRAFT-02, not merely the first 200 overall ranks. |
+| Full source coverage has limits | 970/978 ECR rows map; eight unresolved entries begin at rank 489. One matched entry outside the top 400 is inactive. | Quarantine unresolved/ambiguous identities and apply eligibility checks; never guess a Sleeper ID or silently present an unranked player as ranked. |
+| ADP is available but incomplete | The official [14-team half-PPR feed](https://fantasyfootballcalculator.com/api/v1/adp/half-ppr?position=all&teams=14&year=2026) returned 209 unique players and a September 3–8 window, 1,837 source mocks, source length 15 rounds. All 209 map uniquely; 178 of ECR's top 200 have ADP. | Nullable ADP; use 13 rounds from this league's draft. Missing ADP must not remove an otherwise ranked player. |
+| Team-specific ADP calibration is unproven | One teams=12 control returned identical numeric ADP/distribution statistics; 197 formatted round strings differed. | Report market ADP, not a claimed 14-team probability of surviving until a later pick. This may reflect source methodology; it is not established as a bug. |
+| Sleeper identity and order are explicit | Current draft detail includes `draft_order[user_id]=1` and `slot_to_roster_id["1"]=5`. Draft `rounds=13`; league `draft_rounds=3` is a different field. No traded picks were returned. | Use active draft metadata and roster mapping. Verified operator picks: 1,28,29,56,57,84,85,112,113,140,141,168,169 (US-DRAFT-01/02). |
+| Player eligibility needs the fantasy field | Sleeper's Travis Hunter entry has primary `position=DB` but `fantasy_positions=[DB,WR]`. The map has 32 team defenses and 12,226 entries overall. | Match and filter by fantasy eligibility, not primary position alone. `active` is not evidence of health. |
+| Polling is possible; freshness is not guaranteed | Supplied-league reads all returned HTTP 200 with wildcard CORS. In pre_draft, draft/picks headers advertised `s-maxage=30`, `stale-while-revalidate=300`; current picks were empty. | A fast poll or HTTP 200 does not prove the latest pick is visible. Distinguish last check from feed freshness and offer a local correction path (US-DRAFT-03). |
+| Player map should be cached | One full response was 14,651,561 bytes, 12,226 entries, received in 1.787 seconds. [Sleeper docs](https://docs.sleeper.com/) request infrequent player-map downloads, normally at most daily. | Cache and normalize at preparation time, not once per pick or render. Single-request timings are observations, not performance guarantees. |
+
+### Access, prior art, and alternatives
+
+The researched primary route is one personal copy of the public ranking page,
+stored locally with attribution and provenance. Keep raw provider pages/data out
+of Git and public assets; [FantasyPros terms](https://www.fantasypros.com/about/legal/)
+describe a personal-copy exception and do not establish redistribution rights.
+Do not assume a free CSV export merely because the page contains a CSV button.
+
+The official [FantasyPros API page](https://www.fantasypros.com/api-data/) says
+free REST keys serve sample data; personal production access comes with HOF.
+No subscription is required by the recommended public-snapshot route. A separate
+official [MCP tool guide](https://support.fantasypros.com/hc/en-us/articles/55238312588571-What-tools-are-available-in-the-FantasyPros-MCP-Server)
+lists ECR/ADP with a free account, but its OAuth connection and data import were
+not tested here. Neither paid REST nor MCP setup is a dependency for tonight.
+
+FantasyPros' [Draft Assistant](https://draftwizard.fantasypros.com/football/draft-assistant/)
+is relevant prior art: league context, taken-player tracking, and expert
+recommendations form the established workflow. It is an alternative product,
+not an integration assumed by this plan. [ECR methodology](https://support.fantasypros.com/hc/en-us/articles/115001219327-What-is-ECR-Expert-Consensus-Rankings-and-how-do-you-calculate-it)
+aggregates expert judgments; ECR rank is ordinal evidence, not a projected-points
+difference. FFC says its ADP comes from mocks, and its own ranking page derives
+rankings from that ADP; that page is not an independent expert-value source.
+
+### Integration constraints and failure cases
+
+- Store Sleeper league/user/draft IDs as strings. Normalize roster/slot keys
+  deliberately rather than relying on number coercion.
+- Identity matching should normalize punctuation, diacritics, and suffixes,
+  then use fantasy position and team to disambiguate. Map DEF by team and
+  normalize PK/K, DST/DEF, and team aliases. No fuzzy automatic join.
+- Two reviewed aliases are needed within ECR's top 400: FantasyPros 18226
+  (Hollywood Brown) to Sleeper 5848 (Marquise Brown), and FantasyPros 24901
+  (Bam Knight) to Sleeper 8122 (Zonovan Knight). Source page filenames and
+  Sleeper name/team/position corroborate them. Retain original IDs/names.
+- Use ECR/tier, roster requirements, and remaining picks for explainable
+  recommendations. ADP can inform a reach or value observation; it does not
+  justify survival percentages. Injury status/news age must be visible where
+  relevant, with no claim that a null injury field means fully healthy.
+- Poll picks on a bounded cadence; five seconds is a candidate, not a locked
+  setting. Stop overlapping requests and back off on errors. Polling faster
+  does not eliminate upstream caching. Rank input can remain usable offline.
+- Rebuild availability from full pick snapshots, incorporating local pending
+  corrections without issuing Sleeper mutations. Commissioner undo, reconnect,
+  stale responses, and a previously selected candidate taken by another team
+  require explicit reconciliation rules in ARCHITECTURE.
+- Current live evidence covers pre_draft and an empty pick list only. Synthetic
+  fixtures must cover draft progression, rollback, errors, and reconnect.
+  Automatic approval review rejected a historical-league/invalid-ID probe as
+  outside the supplied league scope; it did not run and was not retried.
+- No schema change or shared Supabase dependency is indicated for tonight's
+  single-user snapshot and draft-state needs. Storage/deployment are proposed
+  choices, not locked architecture.
+
+### Reproducible research checks
+
+Source retrieval used ordinary unauthenticated GETs. Future workers can repeat:
+
+```sh
+curl --fail --silent --show-error --location --max-time 30 --output /tmp/fantasypros-half-ppr.html https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php
+curl --fail --silent --show-error --location --max-time 30 --output /tmp/ffc-half-ppr-14.json 'https://fantasyfootballcalculator.com/api/v1/adp/half-ppr?position=all&teams=14&year=2026'
+curl --fail --silent --show-error --dump-header /tmp/draft-headers.txt --output /tmp/draft.json https://api.sleeper.app/v1/draft/1389330057733865473
+curl --fail --silent --show-error --dump-header /tmp/pick-headers.txt --output /tmp/picks.json https://api.sleeper.app/v1/draft/1389330057733865473/picks
+```
+
+Parse the JSON value after the `var ecrData = ` marker as JSON, never evaluate
+page JavaScript. Assert year/scoring/week, unique IDs, finite ranks, coverage,
+and source metadata. Join against a cached Sleeper player map using the rules
+above and report unmatched rows. Inspect headers separately from body timing.
+
+Temporary evidence at /tmp/fantasy-rankings-source-summary.json and
+/tmp/fantasy-rankings-source-probe.py was independently reviewed and rerun.
+Those files are conveniences, not a durable dependency: the URLs, input schemas,
+matching rules, counts, and caveats in this record and research bead are the
+reproducible contract. Raw datasets were not committed.
+
+### Provisional module fingerprints
+
+All paths below are **provisional new files**, not existing symbols. The
+repository currently contains only tracker/corpus/planning files, as verified
+with `rg --files --hidden -g '!.git/**'`. Local runtime checks returned Node
+v24.13.1 and npm 11.9.0. Node offers built-in
+[HTTP](https://nodejs.org/docs/latest-v24.x/api/http.html) and
+[test](https://nodejs.org/docs/latest-v24.x/api/test.html) modules. Plain ESM and
+a small browser client are a viable low-dependency candidate; framework and
+module boundaries will be locked at ARCHITECTURE.
+
+| Candidate area | Provisional write footprint | Evidence/seam and story | Confidence |
+| --- | --- | --- | --- |
+| Source preparation and identity | scripts/prepare-data.mjs; src/data/sources.mjs; src/data/identity.mjs; src/data/snapshot.mjs; tests/unit/sources.test.mjs; tests/unit/identity.test.mjs; tests/integration/source-import.test.mjs; .gitignore | Verified HTML/JSON inputs, 400-player join, private atomic snapshot; US-DRAFT-01/03 | High need; medium boundaries |
+| Sleeper adapter and draft state | src/sleeper/client.mjs; src/draft/state.mjs; tests/unit/draft-state.test.mjs; tests/integration/draft-sync.test.mjs | ID/order/round differences, full pick snapshots, stale/manual reconciliation; US-DRAFT-02/03 | High |
+| Recommendation rules | src/draft/recommend.mjs; src/draft/roster.mjs; tests/unit/recommend.test.mjs | Ranked available candidates, nullable ADP, positional fit and 1/28/29 turns; US-DRAFT-01/02 | High need; scoring approach provisional |
+| Browser and serving | src/server.mjs; web/index.html; web/app.mjs; web/styles.css; tests/integration/app.test.mjs | Approved browser workflow and deployment answer; real HTTP/client composition; all draft stories | Medium |
+| Shared setup and fixture contracts | package.json; src/contracts.mjs; tests/fixtures/sleeper.mjs; tests/fixtures/rankings.mjs; README.md | No existing application surface; common snapshot/board contracts and startup command | High need; medium paths |
+
+### Provisional bundle groups
+
+Candidate group **draft-core**: source preparation, draft state, recommendation
+rules, and initial server wiring are likely to share src/contracts.mjs,
+package.json, and synthetic fixtures. If those write overlaps survive
+architecture, one lane and one PR for the small core avoids repeated contract
+edits and merge sequencing. This is a candidate grouping, not a dispatch claim.
+
+Candidate group **draft-ui**: web/app.mjs, web/index.html, styles, and the browser
+integration test likely change together. It can be a separate lane only after
+the board contract/server routes are stable and its write footprint excludes
+core files; otherwise merge it into draft-core. ARCHITECTURE and DECOMPOSITION
+must re-derive every path and discard stale groups.
+
+### Operator decisions and gate
+
+- **Q7:** Approve the private current FantasyPros half-PPR snapshot plus FFC ADP
+  as optional market context, with unmatched IDs quarantined and no paid API
+  dependency for tonight?
+- **Q9:** Local browser on this computer, or a hosted link for another device?
+  Local delivery is recommended for tonight; the operator's answer is pending.
+- **Q10:** Approve reversible local drafted-player corrections as the fallback
+  for observed feed lag? They do not submit picks to Sleeper.
+- **Q11:** Approve these research findings and constraints before ARCHITECTURE?
+
+No new application code was written. Research verifies source feasibility, not
+the completed application's performance or a live-draft freshness guarantee.

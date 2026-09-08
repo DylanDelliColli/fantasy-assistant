@@ -14,7 +14,7 @@ Planning epic: `fantasy-p55` tracks the personal Sleeper fantasy football
 assistant and its approved execution backlog.
 Workflow: `/home/ddc/.claude/skills/abacus-plan/SKILL.md`.
 
-Current stage: **RECORD review pending export authorization**. FRAMING, RESEARCH, and
+Current stage: **RECORD complete; final DECOMPOSITION handoff checks**. FRAMING, RESEARCH, and
 ARCHITECTURE are approved. Earlier sections preserve their gate proposals;
 architecture approval locks local delivery and the correction behavior.
 
@@ -1055,9 +1055,9 @@ planning gates; proceed to RECORD after committing this deliverable.
 
 ## RECORD
 
-Status: Durable draft prepared; required external specification review is
-blocked on explicit export authorization. The remaining phase-approval pauses
-were waived, but the separate automatic export restriction was not bypassed.
+Status: Complete. The operator explicitly authorized the de-identified Claude
+export after the earlier rejections; the required specification review has run
+and its three findings are resolved. No further phase signoff is required.
 
 The accepted runtime/data/state decision warrants
 `docs/adr/0001-local-draft-assistant.md`. `AGENTS.md` records the execution
@@ -1073,8 +1073,28 @@ costs recorded in the ADR. A separate specification call containing the full
 planning record was rejected by automatic approval review before execution.
 A smaller de-identified technical extract was also rejected because the
 architecture itself is nonpublic project information. Neither specification
-call ran. Task `fantasy-p55.4` tracks the required authorization/review; an
-asynchronous permission question is pending. Do not retry without approval.
+call ran. The operator then answered "yes, please do" to the explicit limited
+export request. The fresh tools-disabled Claude specification review completed
+successfully using claude-fable-5-1. Task `fantasy-p55.4` records authorization,
+the review, corrective dispositions and verification.
+
+The review's three refinements are explicit in the ADR and affected children:
+completed drafts become overdue at40s instead of the15s active/pre-draft
+threshold, leaving immediate failure unchanged; ordinary/backup-QB-TE/early-K-DEF
+deferral groups sort before ECR, missing-ECR placement and ADP bands; any
+unresolved top400 ECR join invalidates that optional import to labeled ADP-only,
+while lower ranks may be quarantined. Unit and real HTTP/browser/import
+assertions cover the distinctions in their existing planned files and fixtures.
+The per-file runtime estimates remain estimates, including these clarifications;
+implementation must measure the complete suite against30s.
+
+Review scope was the de-identified technical architecture. It verified internal
+consistency, schedule/test-budget arithmetic and revision/HTTP/browser rules;
+it did not inspect live routes, code, identity, timing measurements or withheld
+planning history. Local checks separately verified the cached supplied league,
+draft and user mapping, roster/scoring, all13 own picks and the four child
+contracts/dependency edges. The complete scope and evidence are in the durable
+ADR. No implementation or human rehearsal metric is claimed by planning.
 
 The documentation validator initially required root-file registration and a
 corpus index. Verified blocker `fantasy-p55.3` fixed those metadata paths;

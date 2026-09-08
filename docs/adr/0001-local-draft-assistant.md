@@ -5,7 +5,7 @@ lifecycle: active
 
 # ADR 0001: Local Sleeper draft assistance
 
-Status: Architecture accepted 2026-09-08; durable record under review.
+Status: Accepted and reviewed 2026-09-08; implementation pending.
 Authority: operator-approved FRAMING, revised RESEARCH at `308192c`,
 ARCHITECTURE at `50973fe`, and TEST-STRATEGY at `dbb58c3`.
 The operator approved architecture and then authorized completion of all
@@ -114,7 +114,9 @@ assets; atomic publication must not expose partial JSON.
 
 An optional private [FantasyPros half-PPR snapshot](https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php)
 supplies independent ECR ranks/tiers. Extract JSON without executing scripts;
-validate year/week/scoring, unique IDs/ranks and unique top-400 joins.
+validate year/week/scoring, unique IDs/ranks and unique top-400 joins. Any
+unresolved or ambiguous top-400 join invalidates the entire optional ECR
+import, selecting labeled ADP-only mode; only lower ranks are quarantined.
 Normalize names/suffixes/diacritics, position/team aliases, and DEF team keys;
 never fuzzy-match ambiguity. Reviewed aliases: FP18226 -> Sleeper5848
 (Hollywood/Marquise Brown), FP24901 -> Sleeper8122 (Bam/Zonovan Knight).
@@ -137,8 +139,9 @@ unrelated position. Defer backup QB/TE while offense has holes unless the
 candidate fills an offensive starter. Defer K/DEF until the last two selections,
 unless completion forces them earlier; deferral is ordering, not exclusion.
 
-Within the ordinary ECR group, order by tier, starter fit, ECR rank, ADP, ID.
-Missing ECR follows ranked candidates by ADP; no fabricated expert tier.
+Deferral is the outermost key: ordinary, backup QB/TE, then early K/DEF.
+Within each group, order ECR by tier, starter fit, ECR rank, ADP, ID.
+Missing ECR follows ranked candidates within that group by ADP; no fabricated tier.
 ADP-only mode uses fixed groups of 12 ordinal places over the prepared eligible
 ADP pool, then starter fit, exact ADP, ID. Exclusions never move the bands.
 Show at most three distinct surviving candidates with source values and roster
@@ -216,8 +219,11 @@ old responses across restart without discarding a committed action behind a
 later-started metadata read. Preserve focus on unchanged content and retain
 cards on connection failure. Separately
 show source update/fetch times, last successful check, last changed picks and
-connection health. Failure is immediate; 15 seconds without a successful check
-is overdue. Normal status says checked and that Sleeper may lag.
+connection health. Failure is immediate. Without a successful check, pre-draft
+and active boards are overdue at 15 seconds; completed boards at 40 seconds
+to accommodate their healthy 30-second polling cadence and request deadlines.
+Observed reopen restores the 15-second threshold. Normal status says checked
+and that Sleeper may lag.
 
 ## Verification and tradeoffs
 
@@ -259,10 +265,25 @@ rate limits and completed polling detects reopen; removing order/keeper/trade
 fingerprints can silently produce the wrong own-pick schedule.
 
 This was one subtraction review pass, not a mandate to accept every cut.
-Specification validation remains pending: automatic approval review rejected
-both the full planning-record export and a de-identified technical extract.
-Neither specification call ran. Explicit authorization for the limited export
-was requested; the tracked review gate blocks implementation readiness.
+Automatic approval review initially rejected full-record and de-identified
+specification exports; neither rejected call ran. The operator subsequently
+authorized the limited de-identified architecture export. A fresh tools-disabled
+Claude specification review then completed successfully, reporting
+`claude-fable-5-1` and no permission denials.
+
+Its three findings are resolved in this record and implementation tests:
+completed polling uses a 40-second overdue threshold instead of the active
+15-second threshold; deferral is the outermost rank key, including unranked
+candidates; and any unresolved top-400 ECR join selects ADP-only mode for the
+whole optional import. The review confirmed schedule and next-pick arithmetic,
+test counts/budget arithmetic, and domain/view revisions with HTTP/browser rules.
+
+Review scope was internal consistency of the de-identified technical contract.
+It did not inspect implementation, live routes, withheld planning history,
+identities or timing measurements. Local checks separately confirmed league/
+draft/user ownership, roster/scoring and all own picks against cached research,
+and checked child contracts against the approved scope. No live freshness,
+application coverage or human timing is claimed by this planning review.
 
 A separate fresh-context backlog reviewer read the durable ADR and all four
 implementation contracts without conversation history. Dependency direction,
@@ -271,4 +292,5 @@ incorporated: null versus accepted-empty availability; separate durable and
 presentation revisions with restart/response ordering; and explicit window-focus
 refresh. Unit and real browser/HTTP assertions cover each distinction. The
 source task also declares README corpus/index registration. This local
-same-lineage review does not replace the pending specification validation.
+same-lineage review and the subsequent Claude specification review cover
+different scopes; both are complete with their findings resolved.

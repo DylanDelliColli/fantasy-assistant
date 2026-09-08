@@ -14,9 +14,14 @@ Planning epic: `fantasy-p55` tracks the personal Sleeper fantasy football
 assistant and its approved execution backlog.
 Workflow: `/home/ddc/.claude/skills/abacus-plan/SKILL.md`.
 
-Current stage: **ARCHITECTURE awaiting approval**. FRAMING and revised RESEARCH
-are approved. Earlier sections preserve what was known at their gates; the
-ARCHITECTURE section carries the current proposal and open questions.
+Current stage: **TEST-STRATEGY in progress**. FRAMING, revised RESEARCH, and
+ARCHITECTURE are approved. Earlier sections preserve their gate proposals;
+architecture approval locks local delivery and the correction behavior.
+
+Operator instruction on 2026-09-08: "no need to ask me for approval for the
+remaining phases - just continue on until this plan session is complete".
+This explicitly supersedes the remaining approval pauses. Required stage
+deliverables, verification, reviews, commits, and handoff still apply.
 
 ## FRAMING
 
@@ -400,7 +405,9 @@ the completed application's performance or a live-draft freshness guarantee.
 
 ## ARCHITECTURE
 
-Status: Complete proposal for operator review; approval pending. Upstream:
+Status: **Approved** by the operator on 2026-09-08: "approved". Approval covers
+the proposal committed at `50973fe`, including local delivery (Q9), correction
+behavior (Q10), and the architecture gate (Q12). Upstream:
 FRAMING approved at `5a4fb23`; revised RESEARCH at `308192c` approved by
 "perfect. Continue on" on 2026-09-08. This section specifies the design to
 lock at this gate. No application implementation or TEST-STRATEGY has started.
@@ -788,3 +795,260 @@ and browser composition coverage within the 30-second suite budget.
 Validation for this gate is documentation/tracker validation only: [no-test],
 because no application code was created. The full test contract belongs to the
 next approved stage, not a test suite claimed to exist now.
+
+## TEST-STRATEGY
+
+Status: Complete under the operator's instruction to finish the remaining
+phases without approval pauses. Architecture authority: `50973fe`, explicitly
+approved on 2026-09-08. Producer: the isolated `test_strategy` agent supplied
+the columbo-type review on planning task `fantasy-p55.2`; the parent reviewed
+its cases, clarified test oracles, and budgeted a larger browser allowance.
+This is a proposed test contract, not implemented or passing application tests.
+
+### Existing surface, runner, and budget
+
+Repository enumeration found no application files, package.json, test directory,
+or framework configuration. Every test path below is NEW; there is no existing
+coverage to extend. Node v24.13.1 ran `node --test`: exit 0, zero tests/suites,
+no stderr, 11.131628ms reported runner duration and **0.046365766 seconds**
+external wall time. This is measured empty discovery, not application validation.
+
+Use `node:test` and `node:assert/strict` for all layers. Use the
+[Playwright library](https://playwright.dev/docs/library) as a development-only
+dependency to drive real Chromium in the integration suite. Pin its installed
+version and matching browser during implementation in package-lock.json; an
+existing machine browser cache is not proof of that installation. Browser
+installation is setup, while browser launch and shutdown count in every run.
+The [clock facilities](https://playwright.dev/docs/clock) permit controlled
+browser time; backend tests use an injected clock/scheduler. Do not depend on
+features added after the installed Node version.
+
+Full command after implementation:
+`node --test --test-concurrency=1 tests/unit/*.test.mjs tests/integration/*.test.mjs`,
+exposed as `npm test`. All unit, integration, and Chromium cases run together.
+Measure the eventual whole command externally; do not subtract subprocess or
+browser overhead or exclude a layer to claim compliance.
+
+| New test file | Layer | Estimated seconds |
+| --- | --- | ---: |
+| tests/unit/sources.test.mjs | Unit | 0.30 |
+| tests/unit/identity.test.mjs | Unit | 0.20 |
+| tests/unit/context.test.mjs | Unit | 0.15 |
+| tests/unit/snapshot.test.mjs | Unit | 0.10 |
+| tests/unit/draft-state.test.mjs | Unit | 0.40 |
+| tests/unit/roster.test.mjs | Unit | 0.40 |
+| tests/unit/recommend.test.mjs | Unit | 1.50 |
+| tests/unit/session.test.mjs | Unit | 0.30 |
+| tests/unit/presentation.test.mjs | Unit | 0.20 |
+| tests/integration/source-import.test.mjs | Real HTTP + filesystem | 1.40 |
+| tests/integration/draft-sync.test.mjs | Real HTTP + session/domain | 1.20 |
+| tests/integration/session-persistence.test.mjs | Real files + process ownership | 1.30 |
+| tests/integration/app.test.mjs | Real application HTTP | 1.00 |
+| tests/integration/browser-draft.test.mjs | Real Chromium + application | 10.00 |
+| Additional npm/process/teardown allowance | Whole run | 2.00 |
+
+Measured empty baseline: 0.046365766s. Remaining allowance before additions:
+30 - 0.046365766 = **29.953634234s**. New file estimates: **18.45s**
+(3.55 unit + 4.90 other integration + 10 browser). With the 2s overhead
+allowance, estimated total is **20.496365766s**, leaving **9.503634234s**.
+These are estimates. Implementation must report the actual elapsed duration.
+If the budget is exceeded, remove redundant setup/repeated coverage or improve
+the slow case; preserve distinct required assertions and both layers.
+
+### Fixtures and real composition
+
+`tests/fixtures/sleeper.mjs` supplies the real-shaped approved league settings,
+string IDs, roster 5 versus slot 1, and an independently listed full snake
+schedule. `tests/fixtures/rankings.mjs` generates 400 fictional players:
+40 QB, 110 RB, 130 WR, 56 TE, 32 K, 32 DEF, with unique string IDs, supported
+team keys, and synthetic ADP/ranks/tiers. Small mutations isolate boundaries.
+Do not commit raw provider data or pretend fixture performance is real NFL data.
+
+`tests/helpers/upstream.mjs` serves actual loopback HTTP on port 0 and records
+requests, with controlled responses and barriers. `tests/helpers/runtime.mjs`
+creates real temporary directories, composes and closes the real application,
+and supplies clock/scheduler control. Integration calls actual fetch, parsing,
+matching, session logic, and filesystem operations. Mocking the database or
+filesystem is not integration coverage. No database is needed by this design.
+
+Timeout/backoff cases advance logical time; deferred response promises control
+ordering without wall-clock sleeps. A real rename failure or conflicting
+destination proves persistence failure; do not rely on chmod, which is
+ineffective under some test users. Tests always close listeners, child
+processes, browser contexts, and files they own.
+
+### Concrete unit contracts
+
+- **U-SOURCE:** In sources.test.mjs, normalize absent/null/nonfinite/nonpositive
+  ADP and 999 to null; retain ordinary positive decimal ADP. Retain actual or
+  projected zero while missing points stay null. Keep fetch time separate from
+  row/source update times, season and scoring. Given gp=18 versus gp=1, create
+  no per-game field. Accept exactly 400 candidates and each position floor;
+  independently reject 399 and each deficient position. Reject wrong season
+  and duplicate source IDs. Retain inactive/teamless/unsupported identities
+  for interpreting picks but exclude them from recommendations. Optional ECR
+  failure selects labeled ADP-only mode with no ECR fields; absent history
+  leaves current data usable.
+- **U-IDENTITY:** In identity.test.mjs, normalize punctuation/diacritics/suffixes,
+  PK/K, DST/DEF and team aliases; match defenses by team. Match a primary DB
+  eligible at WR as WR. Quarantine same-name ambiguity and unapproved near
+  aliases. Verify the two reviewed ID aliases exactly. Reject duplicate ECR
+  IDs/ranks, duplicate joined Sleeper IDs, and unresolved top-400 identities;
+  quarantine unresolved lower ranks. Round-trip an ID above 2^53 as a string.
+  Extract JSON without executing accompanying script; hostile names stay text.
+- **U-CONTEXT:** In context.test.mjs, obtain roster 5, slot 1, draft rounds 13
+  despite league draft_rounds=3. Use the league's season despite a different
+  clock year. Reject unsupported shape/keepers/trades/ownership. Normalize an
+  empty picked_by using roster_id or the verified slot mapping. Sort a
+  contiguous unordered pick array; reject duplicate picks/players, actual
+  gaps, wrong draft, illegal round/slot/range and noninteger structure.
+  Fingerprints ignore key order/display labels and change for a rule change.
+- **U-SNAPSHOT:** In snapshot.test.mjs, validate schemaVersion=1 and reject
+  unsupported/missing versions or configuration identity mismatches without
+  modifying input. Keep unknown source update times null.
+- **U-STATE:** In draft-state.test.mjs, assert all 13 own pick numbers explicitly.
+  Mark taken and Undo change availability but never official count, owner, or
+  schedule. With pick 1 recorded, a local pick at 28 yields next [29,56] and
+  one new own player despite missing opponent observations. Confirmation
+  retires the correction without duplication. A different official player
+  at the slot or official ownership elsewhere removes the conflicting local
+  claim and reports it. Reject duplicates, occupied/non-owned/out-of-order
+  slots, unknown IDs and obsolete revisions. Smaller/changed snapshots remain
+  pending with a diff. Accept only the exact pending version, clear assigned
+  corrections at/after first change and all unassigned taken markers, and
+  report those removals. Shape changes require preparation. Old fetches cannot
+  replace newer actions/state. Failures preserve the board; unchanged checks
+  do not assert feed freshness. Unknown peer IDs remain excluded; unknown own
+  IDs disable personalization while retaining a browseable board.
+- **U-ROSTER:** In roster.test.mjs, for remaining RB/WR/FLEX slots and players
+  RB+WR, RB-only, TE-only, fill all three correctly: dual at WR, RB at RB,
+  TE at FLEX. One dual player cannot fill two slots. Prefer a dedicated WR
+  slot over FLEX for a lone WR and use stable ties. Four bench slots permit
+  13 selections; reserve is not another draft pick. Two missing RB/WR slots
+  cannot be completed by only one dual player. Count a player's one policy
+  position once while preserving every eligible position for matching.
+- **U-RECOMMEND:** In recommend.test.mjs, exclude official/local picks and
+  ineligible or wholly unranked players; return 0/1/2/3 distinct survivors
+  without padding. With RB/FLEX filled and WR empty, a later-ranked WR wins
+  within one ECR tier, but ordinary later tiers cannot leap earlier tiers.
+  ADP-only players follow ranked players without invented ECR tiers. Test
+  fixed ADP-band positions 12/13, tied ADP and earlier-player exclusions.
+  Defer backup QB/TE while offense has holes, except a dual player filling
+  an open offensive starter. Defer K/DEF until the final two selections as
+  ordering, not exclusion. Reject second K/DEF or third QB/TE; an already
+  exceeded QB cap does not reject an unrelated WR. With 11 own players,
+  K/DEF empty and two picks left, reject even the highest-ranked extra RB.
+  Impossible completion returns a specific unavailable reason plus the
+  player board. Swapping raw QB/WR projection totals or weekly injury tags
+  cannot invent ranking penalties, health claims, per-game values or survival
+  odds. Assert deterministic evidence and next picks. Unknown initial
+  availability and completed own draft have distinct empty-shortlist reasons.
+  Include a full 400-player calculation to reveal excessive computation.
+- **U-SESSION:** In session.test.mjs, many callers share one cycle. Assert the
+  4s request timeout, 5s successful delay, 10/20/40/60/60 backoff, longer valid
+  Retry-After, and reset after success. Manual refresh cannot bypass retry
+  deadlines. Complete drafts use 30s polling and can reopen. At 14,999ms a
+  successful check is not overdue; at 15,000ms it is. No pick change alone
+  does not mean failure. Restored state remains stale until checked.
+- **U-PRESENTATION:** In presentation.test.mjs, test pure exported formatting
+  and request helpers in web/app.mjs: numeric zero differs from an em dash,
+  source/check/change ages differ, and failure/overdue/connection-loss/local
+  correction text is explicit. Requests include displayed pickNo and
+  expectedRevision. Null injury never renders healthy. Do not duplicate
+  roster/ranking logic merely to make the UI unit-testable.
+
+### Concrete integration contracts
+
+- **I-IMPORT:** source-import.test.mjs runs the preparation CLI/composition
+  against real fixture HTTP and temp files, publishes/reloads all 400 canonical
+  rows, and checks config, provenance, joins and ranking mode. A <24h player
+  cache prevents another players request and preserves its fetch time; exact
+  24h is expired. Required HTTP/schema/coverage failures preserve prior bytes.
+  Optional ECR/history failure still publishes the labeled degraded result.
+  Malformed/script-bearing source HTML cannot execute a side effect. Actual
+  readers during replacement see only valid old/new JSON; failed writes
+  preserve the old snapshot. Provider requests are GET-only, and real
+  `git check-ignore` verifies .local exclusion.
+- **I-SYNC:** draft-sync.test.mjs composes client, session, state and recommender.
+  Replay 0 -> 1 -> 27 -> 28 -> 29 and an opponent taking a prior suggestion;
+  assert removal, roster-5 ownership, next selections and no duplicates.
+  Test unchanged responses, 500, 429, hanging/invalid/gapped responses and
+  retention of data with explicit status. Hold an old poll until after a
+  local action and prove it cannot overwrite the action. Review a rollback,
+  reject a superseded pending version, then accept exactly the reviewed one.
+- **I-DISK:** session-persistence.test.mjs saves an action, closes and restarts
+  against real files, restoring state/corrections/revision as stale. A second
+  real process cannot own the same directory or alter it. Reclaim a lock
+  only after its PID is confirmed dead; do not remove a live owner's lock.
+  Corrupt JSON, wrong schema and wrong configuration preserve bytes and show
+  recovery errors. A real rename/destination failure cannot acknowledge a
+  correction as saved. Hold persistence while a refresh completes and prove
+  monotonic revision with no missing action or mixed state. Close resources.
+- **I-HTTP:** app.test.mjs runs real createApp/session/files/fetch. A board GET
+  returns immediately from memory with no-store while upstream is held.
+  Refresh joins one cycle and returns promptly. A valid action saves and
+  returns the new board; stale revision is 409, invalid action 422, and disk
+  failure is a structured unsuccessful response. Reject unknown routes/methods,
+  malformed/oversized JSON and foreign Host/Origin before mutation. Reject
+  .local, traversal/encoded traversal, arbitrary paths and unknown assets.
+  No arbitrary-URL proxy or upstream write exists; recorded provider methods
+  are GET only.
+- **I-BROWSER:** browser-draft.test.mjs shares one Chromium launch with four
+  named scenarios and isolated contexts/fixtures: (1) actual league display,
+  search/filter/details and keyboard-operated picks 1/28/29, with opponent
+  removal, immediate local roster change, official confirmation, Mark taken
+  and Undo; (2) failed upstream and browser connection loss preserve cards,
+  display stale state and recover; (3) changed-board review, obsolete browser
+  responses, stable focus on unchanged boards and visibility-regain refresh;
+  (4) hostile provider strings remain text, controls have accessible names,
+  initial unknown availability is explicit, and two pages share one upstream
+  poller. Use event/locator conditions and barriers, not fixed sleeps.
+  Assertions at each transition remain independently identifiable; do not
+  collapse separate failure guarantees into one existence check.
+
+### Story traceability and product rehearsal
+
+| Story | Unit evidence | Real-composition evidence |
+| --- | --- | --- |
+| US-DRAFT-01: prepare for actual league | U-SOURCE, U-IDENTITY, U-CONTEXT, U-SNAPSHOT | I-IMPORT; I-BROWSER league, strategy, source detail |
+| US-DRAFT-02: consult and adapt at the turn | U-STATE, U-ROSTER, U-RECOMMEND | I-SYNC, I-DISK, I-HTTP; I-BROWSER 1/28/29 and corrections |
+| US-DRAFT-03: understand freshness/failure | U-SOURCE, U-STATE, U-SESSION, U-PRESENTATION | I-IMPORT, I-SYNC, I-DISK, I-HTTP; I-BROWSER failure/recovery |
+| US-SEASON-01: later season management | None for tonight | Explicitly outside this release |
+
+Automated rehearsal proves the correct data and controls appear at picks
+1,28,29. It cannot prove how quickly the operator chooses. Supply an executable
+fixture-backed rehearsal and instructions using the approved league settings;
+the operator can measure each consultation separately against the ten-second
+product target. Record observations when actually performed; otherwise report
+the human metric unmeasured. No worker must wait on a new scope decision or
+pretend that automated elapsed time measures human choice speed.
+
+### Oracle refinements and test discipline
+
+ADP groups are fixed over the prepared eligible ADP pool before availability
+or policy filters; ties sort by exact ADP then string player ID. A player's
+`policyPosition` is Sleeper primary position when supported and eligible,
+otherwise the first supported eligible value in QB,RB,WR,TE,K,DEF order. ECR
+cannot alter it. Caps count that position once; roster matching uses all
+eligibility. A dual player filling an open offensive slot is not a backup.
+Shortlist cardinality counts candidates surviving all hard requirements.
+
+The configuration fingerprint covers league/draft/user/owner roster IDs,
+season/sport/type, team and round counts, reversal setting, ordered roster
+slots, scoring map, draft-order and slot-to-roster mappings, keeper assignments,
+and traded picks. Canonicalize map keys; exclude display labels, timestamps,
+pick counts, and current draft status. Keepers/trades or changed shape are
+unsupported, not silently substituted. Proposed action bodies are limited to
+16KiB; fixed static paths are /, /index.html, /app.mjs, /styles.css.
+
+Implementation proceeds test first: write the applicable assertions, run to
+observe a meaningful failure, implement, then run targeted and full suites.
+A missing module may establish the first red state, but subsequent red runs
+must exercise behavior. No todo/skip placeholders count as coverage. Every
+code child has unit AND real-composition integration assertions; documentation-
+only work is marked [no-test]. Source preparation checks before the actual
+draft remain a separate real-provider smoke check and do not make routine
+tests depend on external availability.
+
+No unresolved product question remains. The operator delegated the remaining
+planning gates; proceed to RECORD after committing this deliverable.

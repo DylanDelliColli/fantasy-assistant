@@ -14,7 +14,7 @@ Planning epic: `fantasy-p55` tracks the personal Sleeper fantasy football
 assistant and its approved execution backlog.
 Workflow: `/home/ddc/.claude/skills/abacus-plan/SKILL.md`.
 
-Current stage: **RECORD complete; final DECOMPOSITION handoff checks**. FRAMING, RESEARCH, and
+Current stage: **DECOMPOSITION complete; publishing execution handoff**. FRAMING, RESEARCH, and
 ARCHITECTURE are approved. Earlier sections preserve their gate proposals;
 architecture approval locks local delivery and the correction behavior.
 
@@ -1103,21 +1103,21 @@ and br lint now passes. These were documentation changes, [no-test].
 
 ## DECOMPOSITION
 
-Status: Local contracts and fresh review complete; final handoff is gated on
-the required RECORD specification review in fantasy-p55.4.
+Status: Complete. Final contracts, footprints, tests, fresh review and graph
+checks pass. RECORD was completed and published at1f6a67b; its review task
+fantasy-p55.4 is closed after authorized review and corrections.
 
-To make all unaffected work concrete, four implementation contracts were
-authored from the approved architecture/test strategy and durable ADR draft.
-They remain blocked on `fantasy-p55.4`; no ready execution handoff is claimed.
-The formal RECORD/DECOMPOSITION completion and in-flight deletion await the
-required review. This is not implicit authorization to execute application work.
+Four implementation contracts derive from the approved architecture/test
+strategy and reviewed durable ADR. All required reviews are complete and no
+open questions remain. Source preparation is ready; subsequent tasks require
+their implementation predecessor. This session completes planning only.
 
 | Bead | Deliverable | Required implementation predecessor |
 | --- | --- | --- |
-| fantasy-p55.5 | Validated private Sleeper preparation, optional ECR, context/client/contracts and source tests | final review gate fantasy-p55.4 |
-| fantasy-p55.6 | Pure draft state, roster matching, shortlist rules and real HTTP/domain replay | fantasy-p55.5 plus final review gate |
-| fantasy-p55.7 | Session ownership, polling, persistence, local HTTP and failure integration | fantasy-p55.6 plus final review gate |
-| fantasy-p55.8 | Browser, real Chromium coverage and isolated human rehearsal launcher | fantasy-p55.7 plus final review gate |
+| fantasy-p55.5 | Validated private Sleeper preparation, optional ECR, context/client/contracts and source tests | none unfinished; review .4 is closed |
+| fantasy-p55.6 | Pure draft state, roster matching, shortlist rules and real HTTP/domain replay | fantasy-p55.5; review .4 is closed |
+| fantasy-p55.7 | Session ownership, polling, persistence, local HTTP and failure integration | fantasy-p55.6; review .4 is closed |
+| fantasy-p55.8 | Browser, real Chromium coverage and isolated human rehearsal launcher | fantasy-p55.7; review .4 is closed |
 
 Final predicted write sets live in each bead's dedicated File footprint section.
 The research core group survives as `bundle:draft-core` on all four because
@@ -1173,8 +1173,8 @@ coverage. Focus-return and visibility-return assertions remain distinct.
 Story traceability: .5 serves US-DRAFT-01/03; .6 and .7 serve US-DRAFT-02/03;
 .8 serves all three draft stories. US-SEASON-01 remains outside this release.
 The .5 -> .6 -> .7 -> .8 sequence is requirements-directed, and each child
-also requires the unresolved review task .4. No implementation is ready while
-that gate remains open. The shared bundle:draft-core tag matches all four
+also records the fulfilled review requirement .4. Only .5 is ready; the other
+three await their implementation predecessor. The shared bundle:draft-core tag matches all four
 final footprints; no independent draft-ui lane remains.
 
 Coverage-loss tripwires pass: no existing application tests exist to delete,
@@ -1186,8 +1186,15 @@ contracts; it does not claim a different-lineage specification review.
 
 Local final checks on 2026-09-08 passed: br lint --status all (11 issues),
 docs-doctor clean, git diff --check clean and no dependency cycles. The
-dependents tree matches the declared serial requirements; br ready shows no
-implementation while .4 remains in progress. Review .9 is closed after these
-checks. The remaining open question is export authorization only; no additional
-planning-phase signoff is required. Keep this file and the execution gate until
-that review is actually completed and its findings resolved.
+dependents tree matches the declared serial requirements; br ready exposes
+only .5. Reviews .4 and .9 are closed. Zero unresolved open-question beads
+remain, and all three external specification refinements have explicit child
+implementation/test assertions. No additional planning-phase signoff is needed.
+
+After committing this final stage, remove this in-flight file in the handoff
+commit. Its durable substance lives in ADR0001, AGENTS.md and the full child/
+epic contracts; Git history preserves this record. The next operator action
+is abacus run from this repository. Do not launch it implicitly. Keep the epic
+open for its unfinished implementation children. Record the eventual execution
+drain's missing-scope interruptions and the actual human10s metric separately;
+neither has been observed during planning.

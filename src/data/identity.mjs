@@ -58,6 +58,7 @@ export function matchEcrPlayers(ecr,playersById,{season='2026'}={}) {
       const id=candidates[0];if(joins.has(id))throw new Error(`Duplicate ECR canonical join: ${id}`);joins.add(id);
       matches[id]={sourceId,rank,tier};
     }
+    if(joins.size===0)return fallback('No canonical ECR joins');
     return {rankingMode:'ecr',matches,quarantine,reason:null};
   } catch(error) {return fallback(error.message);}
 }

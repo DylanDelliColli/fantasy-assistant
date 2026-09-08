@@ -3,6 +3,7 @@ import {dirname,basename,join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {SNAPSHOT_VERSION,POSITIONS} from '../contracts.mjs';
 import {fingerprintConfig,externalId} from '../sleeper/client.mjs';
+import {NFL_TEAMS} from './identity.mjs';
 const record=value=>value!==null && typeof value==='object' && !Array.isArray(value);
 const timestamp=value=>typeof value==='string' && Number.isFinite(Date.parse(value));
 const nullableNumber=value=>value===null || (typeof value==='number' && Number.isFinite(value));
@@ -36,6 +37,10 @@ export function validateSnapshot(snapshot, expected = {}) {
     check(typeof p.active==='boolean' && typeof p.eligibleBase==='boolean' && typeof p.eligible==='boolean','player eligibility flags');
     for(const field of ['adp','ecrRank','ecrTier','projectionPoints','historyPoints'])check(nullableNumber(p[field]),`player ${field}`);
     check(p.adp===null || (p.adp>0 && p.adp!==999),'player ADP');
+    const eligibleBase=p.active && NFL_TEAMS.includes(p.team) && p.fantasyPositions.some(position=>POSITIONS.includes(position));
+    const eligible=eligibleBase && (p.adp!==null || (Number.isSafeInteger(p.ecrRank) && p.ecrRank>0));
+    check(p.eligibleBase===eligibleBase,'player base eligibility contradiction');
+    check(p.eligible===eligible,'player ranked eligibility contradiction');
     check(p.adpBand===null || (Number.isInteger(p.adpBand) && p.adpBand>=0),'player ADP band');
     check(record(p.sourceUpdatedAt),'player source times');
     if(snapshot.rankingMode==='adp-only')check(p.ecrRank===null && p.ecrTier===null && p.ecrSourceId===null,'mixed unlabeled ranks');

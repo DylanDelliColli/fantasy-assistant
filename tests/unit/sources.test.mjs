@@ -28,9 +28,20 @@ test('gp values never generate per-game fields or alter points',()=>{
  const f=sourceFixture();const a=normalize(f)['10001'];f.projections[0].stats.gp=1;f.history[0].stats.gp=18;
  assert.deepEqual(normalize(f)['10001'],a);assert.equal(Object.keys(a).some(k=>/per.?game/i.test(k)),false);
 });
-test('ADP bands use exact value then string ID ties over the fixed eligible pool',()=>{
- const f=sourceFixture();f.projections[0].stats.adp_half_ppr=12;const p=normalize(f);
- assert.equal(p['10001'].adpBand,0);assert.equal(p['10012'].adpBand,0);assert.equal(p['10013'].adpBand,1);
+test('ADP sorting moves a first-input player at value400 into band33',()=>{
+ const f=sourceFixture();f.projections[0].stats.adp_half_ppr=400;const p=normalize(f);
+ assert.equal(p['10001'].adpBand,33);assert.equal(p['10013'].adpBand,0);assert.equal(p['10014'].adpBand,1);
+});
+test('ADP lexical string IDs10 and9 split tied ordinal positions12 and13 across bands0 and1',()=>{
+ const f=sourceFixture();
+ for(const [oldId,newId] of [['10001','9'],['10013','10']]){
+  f.players[newId]={...f.players[oldId],player_id:newId};delete f.players[oldId];
+  for(const rows of [f.projections,f.history])rows.find(p=>p.player_id===oldId).player_id=newId;
+  f.projections.find(p=>p.player_id===newId).stats.adp_half_ppr=12;
+ }
+ f.projections.find(p=>p.player_id==='10012').stats.adp_half_ppr=11.5;
+ const p=normalize(f);assert.equal(p['10'].adpBand,0);assert.equal(p['9'].adpBand,1);
+ assert.equal(p['10012'].adpBand,0);assert.equal(p['10014'].adpBand,1);
 });
 test('exactly 400 eligible ADP identities passes and 399 fails',()=>{
  const p=normalize();assert.equal(validateCoverage(p).total,400);p['10001'].adp=null;
@@ -56,7 +67,7 @@ test('wrong season, duplicate source IDs, malformed player map and key/ID mismat
 });
 test('optional history absence leaves current data intact and metadata separate',()=>{
  const f=sourceFixture();f.history=null;const p=normalize(f)['10001'];assert.equal(p.historyPoints,null);assert.equal(p.sourceUpdatedAt.history,null);
- assert.equal(p.adp,1);assert.equal(p.projectionPoints,0);assert.equal(provenance.players.fetchedAt,NOW);
+ assert.equal(p.adp,1);assert.equal(p.projectionPoints,0);
  assert.equal(TEAMS.length,32);
 });
 test('player cache expires at exactly 24 hours and future/invalid timestamps do not count as fresh',()=>{

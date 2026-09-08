@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {extractEcrData,matchEcrPlayers} from '../../src/data/identity.mjs';
+import {normalizeSources} from '../../src/data/sources.mjs';
 function player(id,name,position='WR',team='JAX',extra={}){return {id,name,team,position,fantasyPositions:[position],policyPosition:position,...extra};}
 function row(id,name,rank=1,position='WR',team='JAC'){return {player_id:id,player_name:name,rank_ecr:rank,tier:1,player_position_id:position,player_team_id:team};}
 function match(rows,players,meta={}){return matchEcrPlayers({year:'2026',week:'0',scoring:'HALF',players:rows,...meta},players,{season:'2026'});}
@@ -49,4 +50,23 @@ test('FA and absent team markers describe the same exact identity without fuzzy 
  const p={a:player('a','Fictional Free Agent','WR',null)};
  const result=match([row('1','Fictional Free Agent',1,'WR','FA')],p);assert.equal(result.rankingMode,'ecr');assert.equal(result.matches.a.rank,1);
  assert.equal(match([row('1','Fictional Free Agent',1,'WR','JAX')],p).rankingMode,'adp-only');
+});
+test('zero canonical ECR joins select ADP-only and preserve lower-rank quarantine',()=>{
+ const result=match([row('missing','Unknown Lower Identity',401)],{a:player('a','Known Identity')});
+ assert.equal(result.rankingMode,'adp-only');assert.deepEqual(result.matches,{});
+ assert.match(result.reason,/no|zero/i);assert.match(result.reason,/canonical|join/i);
+ assert.deepEqual(result.quarantine,[{sourceId:'missing',rank:401,name:'Unknown Lower Identity',reason:'unresolved',candidates:[]}]);
+});
+test('one canonical ECR join is sufficient while provided unresolved top400 still invalidates it',()=>{
+ const players={a:player('a','Known Identity')};
+ const lower=row('missing','Unknown Lower Identity',401),known=row('known','Known Identity',400);
+ const sparse=match([known,lower],players);assert.equal(sparse.rankingMode,'ecr');assert.equal(sparse.reason,null);
+ assert.deepEqual(sparse.matches,{a:{sourceId:'known',rank:400,tier:1}});assert.equal(sparse.quarantine.length,1);
+ const invalid=match([known,{...lower,rank_ecr:399}],players);assert.equal(invalid.rankingMode,'adp-only');assert.deepEqual(invalid.matches,{});assert.match(invalid.reason,/top400/);
+});
+test('current-team ECR-only identity joins without a projection row or ADP band',()=>{
+ const players=normalizeSources({players:{rankonly:{player_id:'rankonly',full_name:'Fictional Rank Only',position:'WR',fantasy_positions:['WR'],active:true,team:'JAX'}},projections:[],season:'2026'});
+ assert.equal(players.rankonly.adp,null);assert.equal(players.rankonly.adpBand,null);assert.equal(players.rankonly.eligibleBase,true);
+ const result=match([row('expert','Fictional Rank Only',1)],players);
+ assert.equal(result.rankingMode,'ecr');assert.deepEqual(result.matches.rankonly,{sourceId:'expert',rank:1,tier:1});
 });

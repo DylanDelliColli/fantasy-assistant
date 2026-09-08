@@ -79,3 +79,61 @@ test('a coherent ownership change in the confirmed league rejects preparation an
  s.c.rosters[0].owner_id=USER;s.c.rosters[4].owner_id=other;s.c.draft.slot_to_roster_id['1']=1;s.c.draft.slot_to_roster_id[s.c.draft.draft_order[other]]=5;
  await assert.rejects(s.prepare(),/ownership|confirmed/i);assert.deepEqual(await readFile(file),bytes);
 });
+test('zero canonical ECR import persists ADP-only with its reason and lower quarantine',async t=>{
+ const s=await setup(t);const ecr=rankingsFixture(s.s.players);
+ ecr.players=[{...ecr.players[0],player_id:'missing',player_name:'Unknown Lower Identity',rank_ecr:401}];s.routes['/ecr']=rankingsHtml(ecr);
+ await s.prepare();const snapshot=await loadSnapshot(join(s.dir,'snapshot.json'));
+ assert.equal(snapshot.rankingMode,'adp-only');assert.equal(snapshot.sources.ecr.status,'unavailable');assert.match(snapshot.importReport.ecr.reason,/no|zero/i);
+ assert.equal(snapshot.sources.ecr.reason,snapshot.importReport.ecr.reason);
+ assert.deepEqual(snapshot.importReport.ecr.quarantine,[{sourceId:'missing',rank:401,name:'Unknown Lower Identity',reason:'unresolved',candidates:[]}]);
+ assert.equal(snapshot.importReport.coverage.total,400);assert.ok(Object.values(snapshot.playersById).every(p=>p.ecrRank===null&&p.ecrTier===null&&p.ecrSourceId===null));
+});
+test('one canonical ECR import remains usable with lower quarantine and still rejects provided top400 failures',async t=>{
+ const s=await setup(t);const ecr=rankingsFixture(s.s.players),known={...ecr.players[0],rank_ecr:400};
+ const lower={...ecr.players[1],player_id:'missing',player_name:'Unknown Lower Identity',rank_ecr:401};ecr.players=[known,lower];s.routes['/ecr']=rankingsHtml(ecr);
+ await s.prepare();let snapshot=await loadSnapshot(join(s.dir,'snapshot.json'));
+ assert.equal(snapshot.rankingMode,'ecr');assert.equal(snapshot.sources.ecr.status,'ok');assert.equal(snapshot.importReport.ecr.reason,null);
+ assert.equal(snapshot.playersById['10001'].ecrRank,400);assert.equal(Object.values(snapshot.playersById).filter(p=>p.ecrRank!==null).length,1);assert.equal(snapshot.importReport.ecr.quarantine.length,1);
+ lower.rank_ecr=399;s.routes['/ecr']=rankingsHtml(ecr);await s.prepare();snapshot=await loadSnapshot(join(s.dir,'snapshot.json'));
+ assert.equal(snapshot.rankingMode,'adp-only');assert.match(snapshot.importReport.ecr.reason,/top400/);assert.ok(Object.values(snapshot.playersById).every(p=>p.ecrRank===null));
+});
+test('saved eligibility rejects contradictory prepared-file edits without rewriting bytes',async t=>{
+ const s=await setup(t);const original=await s.prepare(),file=join(s.dir,'snapshot.json');
+ const changes={inactive:{active:false},teamless:{team:null},unsupported:{fantasyPositions:['DB'],policyPosition:null},
+  falseBase:{eligibleBase:false,eligible:false},falseRanked:{eligible:false},unranked:{adp:null,ecrRank:null,ecrTier:null,ecrSourceId:null,adpBand:null}};
+ for(const [name,change] of Object.entries(changes)){
+  await t.test(name,async()=>{
+   const edited=structuredClone(original);Object.assign(edited.playersById['10001'],change);await writeFile(file,JSON.stringify(edited));const bytes=await readFile(file);
+   await assert.rejects(loadSnapshot(file),/eligib/i);assert.deepEqual(await readFile(file),bytes);
+  });
+ }
+});
+test('saved eligibility reloads consistently ineligible prepared identities without rewriting bytes',async t=>{
+ const s=await setup(t),original=await s.prepare(),file=join(s.dir,'snapshot.json');
+ const changes=[{active:false,eligibleBase:false,eligible:false},{team:null,eligibleBase:false,eligible:false},
+  {fantasyPositions:['DB'],policyPosition:null,eligibleBase:false,eligible:false},
+  {adp:null,ecrRank:null,ecrTier:null,ecrSourceId:null,adpBand:null,eligibleBase:true,eligible:false}];
+ for(const change of changes){const edited=structuredClone(original);Object.assign(edited.playersById['10001'],change);await writeFile(file,JSON.stringify(edited));const bytes=await readFile(file);assert.deepEqual(await loadSnapshot(file),edited);assert.deepEqual(await readFile(file),bytes);}
+});
+test('persisted ADP sorting moves the first input to band33 at value400',async t=>{
+ const s=await setup(t);s.s.projections[0].stats.adp_half_ppr=400;await s.prepare();const snapshot=await loadSnapshot(join(s.dir,'snapshot.json'));
+ assert.equal(snapshot.playersById['10001'].adpBand,33);assert.equal(snapshot.playersById['10013'].adpBand,0);assert.equal(snapshot.playersById['10014'].adpBand,1);assert.equal(snapshot.importReport.coverage.total,400);
+});
+test('persisted ADP lexical string IDs10 and9 split the ordinal12/13 boundary',async t=>{
+ const s=await setup(t);
+ for(const [oldId,newId] of [['10001','9'],['10013','10']]){
+  s.s.players[newId]={...s.s.players[oldId],player_id:newId};delete s.s.players[oldId];
+  for(const rows of [s.s.projections,s.s.history])rows.find(p=>p.player_id===oldId).player_id=newId;
+  s.s.projections.find(p=>p.player_id===newId).stats.adp_half_ppr=12;
+ }
+ s.s.projections.find(p=>p.player_id==='10012').stats.adp_half_ppr=11.5;await s.prepare();const snapshot=await loadSnapshot(join(s.dir,'snapshot.json'));
+ assert.equal(snapshot.playersById['10'].adpBand,0);assert.equal(snapshot.playersById['9'].adpBand,1);assert.equal(snapshot.playersById['10012'].adpBand,0);assert.equal(snapshot.playersById['10014'].adpBand,1);assert.equal(snapshot.importReport.coverage.total,400);
+});
+test('current-team ECR-only candidate persists eligible with no projection, ADP or band',async t=>{
+ const s=await setup(t);s.s.players.rankonly={player_id:'rankonly',full_name:'Fictional Rank Only',position:'WR',fantasy_positions:['WR'],active:true,team:'JAX'};
+ const ecr=rankingsFixture(s.s.players),extra=ecr.players.find(r=>r.player_name==='Fictional Rank Only');ecr.players.find(r=>r.rank_ecr===1).rank_ecr=401;extra.rank_ecr=1;s.routes['/ecr']=rankingsHtml(ecr);
+ await s.prepare();const file=join(s.dir,'snapshot.json'),snapshot=await loadSnapshot(file),p=snapshot.playersById.rankonly;
+ assert.equal(snapshot.rankingMode,'ecr');assert.equal(snapshot.importReport.coverage.total,400);
+ assert.equal(p.adp,null);assert.equal(p.projectionPoints,null);assert.equal(p.ecrRank,1);assert.equal(p.adpBand,null);assert.equal(p.eligibleBase,true);assert.equal(p.eligible,true);
+ const bytes=await readFile(file);assert.deepEqual(await loadSnapshot(file),snapshot);assert.deepEqual(await readFile(file),bytes);
+});

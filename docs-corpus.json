@@ -1,9 +1,9 @@
 {
   "conforms_to": "4",
-  "classes": ["docs/adr"],
+  "classes": ["docs/adr", "docs/INDEX.md"],
   "standing_files": [],
   "managed_globs": [],
-  "managed_files": [],
+  "managed_files": ["AGENTS.md"],
   "alias_symlinks": [],
   "historical_files": [],
   "inflight_globs": ["PLANNING-*.md"],

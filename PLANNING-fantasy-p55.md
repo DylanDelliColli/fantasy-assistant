@@ -14,7 +14,7 @@ Planning epic: `fantasy-p55` tracks the personal Sleeper fantasy football
 assistant and its approved execution backlog.
 Workflow: `/home/ddc/.claude/skills/abacus-plan/SKILL.md`.
 
-Current stage: **TEST-STRATEGY in progress**. FRAMING, revised RESEARCH, and
+Current stage: **RECORD review pending export authorization**. FRAMING, RESEARCH, and
 ARCHITECTURE are approved. Earlier sections preserve their gate proposals;
 architecture approval locks local delivery and the correction behavior.
 
@@ -1052,3 +1052,68 @@ tests depend on external availability.
 
 No unresolved product question remains. The operator delegated the remaining
 planning gates; proceed to RECORD after committing this deliverable.
+
+## RECORD
+
+Status: Durable draft prepared; required external specification review is
+blocked on explicit export authorization. The remaining phase-approval pauses
+were waived, but the separate automatic export restriction was not bypassed.
+
+The accepted runtime/data/state decision warrants
+`docs/adr/0001-local-draft-assistant.md`. `AGENTS.md` records the execution
+contract, and `docs/INDEX.md`/docs-corpus.json register those documents.
+No NORTH-STAR.md exists; the ADR answers what runs today (nothing), the smallest
+release, and quotes the operator-approved frame as scope authority, explicitly
+disclosing the lack of a north-star clause.
+
+The design-document hook fired on creation. The required bloat role ran first
+in a fresh Claude CLI context with tools disabled. It proposed seven cuts;
+the orchestrator retained them with concrete current capability/correctness
+costs recorded in the ADR. A separate specification call containing the full
+planning record was rejected by automatic approval review before execution.
+A smaller de-identified technical extract was also rejected because the
+architecture itself is nonpublic project information. Neither specification
+call ran. Task `fantasy-p55.4` tracks the required authorization/review; an
+asynchronous permission question is pending. Do not retry without approval.
+
+The documentation validator initially required root-file registration and a
+corpus index. Verified blocker `fantasy-p55.3` fixed those metadata paths;
+docs-doctor now reports clean. Its missing reproduction heading was corrected
+and br lint now passes. These were documentation changes, [no-test].
+
+### Local decomposition prepared while export authorization is pending
+
+To make all unaffected work concrete, four implementation contracts were
+authored from the approved architecture/test strategy and durable ADR draft.
+They remain blocked on `fantasy-p55.4`; no ready execution handoff is claimed.
+The formal RECORD/DECOMPOSITION completion and in-flight deletion await the
+required review. This is not implicit authorization to execute application work.
+
+| Bead | Deliverable | Required implementation predecessor |
+| --- | --- | --- |
+| fantasy-p55.5 | Validated private Sleeper preparation, optional ECR, context/client/contracts and source tests | final review gate fantasy-p55.4 |
+| fantasy-p55.6 | Pure draft state, roster matching, shortlist rules and real HTTP/domain replay | fantasy-p55.5 plus final review gate |
+| fantasy-p55.7 | Session ownership, polling, persistence, local HTTP and failure integration | fantasy-p55.6 plus final review gate |
+| fantasy-p55.8 | Browser, real Chromium coverage and isolated human rehearsal launcher | fantasy-p55.7 plus final review gate |
+
+Final predicted write sets live in each bead's dedicated File footprint section.
+The research core group survives as `bundle:draft-core` on all four because
+contracts, package/README, fixtures and the draft-sync integration file overlap.
+The proposed independent draft-ui group is dropped: its final rehearsal and
+setup footprint overlaps earlier files. Dependencies enforce serial work; tags
+do not claim automatic bundled engine dispatch.
+
+The source task creates initial real HTTP/domain integration, and the session
+task extends that same file without deleting its earlier assertions. The UI
+task adds `tests/unit/rehearsal.test.mjs` for the pure rehearsal stage helper
+(estimated 0.30s), plus launcher composition assertions inside the existing
+browser file estimate. Updated total: ten unit files (3.85s), five integration
+files (14.90s), 2s overhead, 0.046365766s measured empty baseline =
+**20.796365766s estimated full run**, leaving **9.203634234s**. The human
+ten-second selection metric still requires actual observation.
+
+The rehearsal is an isolated fixture launcher, not product simulation scope:
+its league name is visibly prefixed REHEARSAL, it uses temporary files and
+loopback upstream, preserves the user's actual chosen own player when advancing
+to 27/28/29, and never accesses the live session or real provider. No worker
+waits on a new product decision to finish its acceptance contract.

@@ -16,8 +16,9 @@ Workflow: `/home/ddc/.claude/skills/abacus-plan/SKILL.md`.
 
 ## FRAMING
 
-Status: Ready for framing review; formal approval is pending. The operator
-supplied the product direction, deadline, identity, and recommendation boundary.
+Status: **Approved** by the operator on 2026-09-08: "approve the framing".
+Approval covers the browser presentation, stories, non-goals, success metric,
+and confirmed league constraints below. The next stage is RESEARCH.
 Targeted source checks below answer the operator's documentation and source
 requests; they do not constitute approval or completion of the RESEARCH stage.
 
@@ -77,9 +78,8 @@ players disappear as the draft updates. The operator can see when data was
 last refreshed and retain the last usable board if a refresh fails. Show the
 operator's next two picks and account for consecutive selections at the turn.
 
-Proposed presentation: a browser page kept beside Sleeper, showing the shortlist
-without requiring a new question each turn. Approving this frame will select
-that presentation; the operator can revise it before approval.
+Approved presentation: a browser page kept beside Sleeper, showing the shortlist
+without requiring a new question each turn.
 
 ### User stories and proposed acceptance scenarios
 
@@ -146,30 +146,26 @@ Checked 2026-09-08; final source and import decisions remain open.
 
 ### Open questions and prerequisites
 
-- **Q6 — Consultation interface:** A browser shortlist is proposed. Confirm
-  it or request a different interface as part of Q8's framing review.
+- **Q6 — Consultation interface:** Resolved by framing approval: browser shortlist.
 - **Q7 — Data source choice:** Sleeper is the only existing source; alternatives
   are welcome. Recommend a verified current-season ranking input, its access
   path, and any cost. Operator approval is required before committing to a paid
   dependency. Source suggestions above remain provisional. Resolving Q7 is an
   explicit RESEARCH deliverable; it does not require choosing a provider before
   framing approval and must be settled before architecture and handoff.
-- **Q8 — Framing signoff:** Approve or revise the proposed stories, non-goals,
-  first release, and success metric after the remaining framing choices.
+- **Q8 — Framing signoff:** Resolved: operator approved on 2026-09-08.
 
 Resolved: Q1 personal draft and season assistance; Q2 remote; Q3 league identity,
 settings, draft position, and scheduled start; Q4 draft first; Q5 recommendations
 only.
 
 External prerequisite beads: **none**. The verified public league/user/draft
-identifiers supply the required Sleeper input. Approval of the browser framing
-is pending. Obtaining a usable current ranking snapshot and validating the
+identifiers supply the required Sleeper input. Browser framing is approved.
+Obtaining a usable current ranking snapshot and validating the
 14-team half-PPR ADP feed are planned research outcomes, not assumed capabilities.
 
 ### Gate status
 
-Full remains the selected tier. This framing proposal is ready for a single
-FRAMING signoff covering the browser presentation, stories, non-goals, and
-success metric. Obtain operator signoff before advancing to formal RESEARCH.
+Full remains the selected tier. FRAMING is approved; RESEARCH is authorized.
 No architecture or implementation decisions are approved. Implementation
 children and execution remain downstream of the required planning gates.

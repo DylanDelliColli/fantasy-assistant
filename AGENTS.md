@@ -9,6 +9,17 @@ This is a personal Sleeper draft assistant. The accepted decision is
 [ADR 0001](docs/adr/0001-local-draft-assistant.md); each implementation bead
 contains its exact file footprint, behavior and test contract.
 
+For the current Fantasy experiment, every coordinator, leader, worker,
+reviewer and helper must use `gpt-6-astra` with `xhigh` reasoning effort and
+Fast mode disabled (`service_tier=default`). Apply these settings explicitly
+to launches and verify active sessions; do not substitute a cheaper model,
+lower effort or a different provider automatically. This operator instruction
+supersedes the experiment's earlier medium-effort default and any differing
+model-selection guidance for this run. Preserve the experiment's existing
+delegation, workspace and approval controls. Record work performed before the
+setting change honestly; changing a prompt alone does not prove the runtime
+model or effort changed.
+
 All work goes through `br`. Start with `br ready`, read `br show <id>`,
 and claim with `br update <id> --claim`. The description is the execution
 contract. Capture incidental discoveries with `jot` (include file, symptom
@@ -45,4 +56,3 @@ work or clear stashes you do not own.
 Planning is complete only when its durable contract and executable backlog
 are published. Application implementation and the human ten-second rehearsal
 metric must be reported separately from planning completion.
-

@@ -1,0 +1,11 @@
+{
+  "conforms_to": "4",
+  "classes": ["docs/adr"],
+  "standing_files": [],
+  "managed_globs": [],
+  "managed_files": [],
+  "alias_symlinks": [],
+  "historical_files": [],
+  "inflight_globs": ["PLANNING-*.md"],
+  "protected_mainline_ref": "refs/heads/master"
+}

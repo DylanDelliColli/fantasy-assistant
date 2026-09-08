@@ -74,11 +74,20 @@ or model-call dependency. `npm run prepare` prepares private data;
 `Snapshot` version 1 contains snapshotId, preparedAt, config/fingerprint,
 sources, playersById, rankingMode and importReport. Players retain all fantasy
 eligibility, canonical policyPosition, source-specific values/times, and
-nullable ECR/ADP/projection/history/injury fields. `DraftState` contains accepted
-picks, pending non-extension, corrections, revision and freshness/error metadata.
-`BoardView` carries version/revision, source mode, league/draft summary, own
+nullable ECR/ADP/projection/history/injury fields. `DraftState.accepted` is null
+until a validated or saved snapshot exists. An accepted snapshot with picks=[]
+is known empty and supports normal pick-1 recommendations. State also contains
+pending non-extension, corrections, revision and freshness/error metadata.
+`BoardView` carries schema version, revision, sessionId, viewRevision, source mode, league/draft summary, own
 roster/next picks, candidates/reasons, searchable players, corrections, pending
 change and distinct source/check/change/connection information.
+
+The persisted `revision` is the domain token used by action expectedRevision.
+Each openSession creates a new sessionId and viewRevision counter. Every
+observable board change advances viewRevision, including unchanged successful
+checks, immediate error/recovery, pending metadata and committed actions.
+Metadata-only updates leave the durable revision unchanged, avoiding action
+conflicts caused by freshness display updates.
 
 ## Source preparation
 
@@ -195,9 +204,17 @@ Bodies are limited to 16KiB. Allow only /, /index.html, /app.mjs, /styles.css as
 static paths. Reject foreign Host/Origin on mutations, malformed bodies,
 unknown methods/routes, path traversal and private file access. No generic proxy.
 
-The visible browser reads the board each second with one request in flight
-and on focus/visibility return, applies only newer revisions, and preserves
-focus on unchanged content. Retain cards on connection failure. Separately
+The visible browser reads the board each second with one read in flight
+and on window focus/visibility return, coalescing overlapping triggers. Reads
+and actions have increasing client request sequences. For the current
+sessionId, apply only newer viewRevision regardless of request start order.
+Reject retired session IDs. Switch to an unseen session only if its request
+sequence exceeds the maximum applied request sequence, permitting a lower
+view counter and retiring the old session ID. Maintain that maximum with
+Math.max so a slow newer same-session action cannot lower it. This prevents
+old responses across restart without discarding a committed action behind a
+later-started metadata read. Preserve focus on unchanged content and retain
+cards on connection failure. Separately
 show source update/fetch times, last successful check, last changed picks and
 connection health. Failure is immediate; 15 seconds without a successful check
 is overdue. Normal status says checked and that Sleeper may lag.
@@ -246,3 +263,12 @@ Specification validation remains pending: automatic approval review rejected
 both the full planning-record export and a de-identified technical extract.
 Neither specification call ran. Explicit authorization for the limited export
 was requested; the tracked review gate blocks implementation readiness.
+
+A separate fresh-context backlog reviewer read the durable ADR and all four
+implementation contracts without conversation history. Dependency direction,
+serial shared footprints and test sequencing passed. Three refinements were
+incorporated: null versus accepted-empty availability; separate durable and
+presentation revisions with restart/response ordering; and explicit window-focus
+refresh. Unit and real browser/HTTP assertions cover each distinction. The
+source task also declares README corpus/index registration. This local
+same-lineage review does not replace the pending specification validation.

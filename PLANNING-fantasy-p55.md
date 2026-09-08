@@ -1081,7 +1081,10 @@ corpus index. Verified blocker `fantasy-p55.3` fixed those metadata paths;
 docs-doctor now reports clean. Its missing reproduction heading was corrected
 and br lint now passes. These were documentation changes, [no-test].
 
-### Local decomposition prepared while export authorization is pending
+## DECOMPOSITION
+
+Status: Local contracts and fresh review complete; final handoff is gated on
+the required RECORD specification review in fantasy-p55.4.
 
 To make all unaffected work concrete, four implementation contracts were
 authored from the approved architecture/test strategy and durable ADR draft.
@@ -1103,7 +1106,7 @@ The proposed independent draft-ui group is dropped: its final rehearsal and
 setup footprint overlaps earlier files. Dependencies enforce serial work; tags
 do not claim automatic bundled engine dispatch.
 
-The source task creates initial real HTTP/domain integration, and the session
+The draft-state task creates initial real HTTP/domain integration, and the session
 task extends that same file without deleting its earlier assertions. The UI
 task adds `tests/unit/rehearsal.test.mjs` for the pure rehearsal stage helper
 (estimated 0.30s), plus launcher composition assertions inside the existing
@@ -1117,3 +1120,54 @@ its league name is visibly prefixed REHEARSAL, it uses temporary files and
 loopback upstream, preserves the user's actual chosen own player when advancing
 to 27/28/29, and never accesses the live session or real provider. No worker
 waits on a new product decision to finish its acceptance contract.
+
+### Final footprint and coverage review
+
+The fresh-context reviewer read the ADR and children without conversation
+history in an isolated worktree. All four pass the Fresh Agent Test after
+three corrections: accepted=null means unknown, while accepted.picks=[] means
+known empty; presentation versioning is separate from durable action revision;
+and both window focus and visibility return trigger a browser read. README
+registration adds docs-corpus.json and docs/INDEX.md to the source task.
+
+These refinements supersede less precise revision/empty-state language in
+the archived architecture and test proposals above. Each openSession receives
+a new sessionId; observable metadata/actions advance viewRevision. Durable
+revision remains expectedRevision for actions and does not change for metadata
+alone. Same-session responses compare viewRevision. Retired session IDs are
+rejected; unseen session transitions require a newer client request sequence
+than the maximum applied so far. Keep that maximum monotonic. Tests separately
+prove a delayed old-session GET cannot replace a new-session action and a slow
+same-session action with a newer viewRevision still replaces a later-started
+metadata GET. An accepted empty draft permits pick-1 advice; offline initial
+unknown availability does not. Both cases have unit and real HTTP/browser
+coverage. Focus-return and visibility-return assertions remain distinct.
+
+| Child | Final predicted write footprint |
+| --- | --- |
+| fantasy-p55.5 | package.json, package-lock.json, .gitignore, README.md, docs-corpus.json, docs/INDEX.md, src/contracts.mjs, scripts/prepare-data.mjs, src/data/sources.mjs, src/data/identity.mjs, src/data/snapshot.mjs, src/sleeper/client.mjs, tests/fixtures/sleeper.mjs, tests/fixtures/rankings.mjs, tests/helpers/upstream.mjs, tests/unit/sources.test.mjs, tests/unit/identity.test.mjs, tests/unit/context.test.mjs, tests/unit/snapshot.test.mjs, tests/integration/source-import.test.mjs, .beads/issues.jsonl. |
+| fantasy-p55.6 | src/draft/state.mjs, src/draft/roster.mjs, src/draft/recommend.mjs, src/contracts.mjs, tests/fixtures/sleeper.mjs, tests/fixtures/rankings.mjs, tests/unit/draft-state.test.mjs, tests/unit/roster.test.mjs, tests/unit/recommend.test.mjs, tests/integration/draft-sync.test.mjs, .beads/issues.jsonl. |
+| fantasy-p55.7 | src/session.mjs, src/server.mjs, src/contracts.mjs, src/data/snapshot.mjs, tests/helpers/runtime.mjs, tests/helpers/upstream.mjs, tests/unit/session.test.mjs, tests/integration/draft-sync.test.mjs, tests/integration/session-persistence.test.mjs, tests/integration/app.test.mjs, README.md, .beads/issues.jsonl. |
+| fantasy-p55.8 | web/index.html, web/app.mjs, web/styles.css, scripts/rehearse.mjs, package.json, README.md, tests/helpers/browser.mjs, tests/helpers/runtime.mjs, tests/unit/presentation.test.mjs, tests/unit/rehearsal.test.mjs, tests/integration/browser-draft.test.mjs, .beads/issues.jsonl. |
+
+Story traceability: .5 serves US-DRAFT-01/03; .6 and .7 serve US-DRAFT-02/03;
+.8 serves all three draft stories. US-SEASON-01 remains outside this release.
+The .5 -> .6 -> .7 -> .8 sequence is requirements-directed, and each child
+also requires the unresolved review task .4. No implementation is ready while
+that gate remains open. The shared bundle:draft-core tag matches all four
+final footprints; no independent draft-ui lane remains.
+
+Coverage-loss tripwires pass: no existing application tests exist to delete,
+distinct failure assertions stay explicit within named scenarios, and the
+session task must preserve the earlier client/domain integration assertions.
+There is no grep-to-zero acceptance clause or removal of protected test
+literals. Freshness review fantasy-p55.9 covers these checks and the corrected
+contracts; it does not claim a different-lineage specification review.
+
+Local final checks on 2026-09-08 passed: br lint --status all (11 issues),
+docs-doctor clean, git diff --check clean and no dependency cycles. The
+dependents tree matches the declared serial requirements; br ready shows no
+implementation while .4 remains in progress. Review .9 is closed after these
+checks. The remaining open question is export authorization only; no additional
+planning-phase signoff is required. Keep this file and the execution gate until
+that review is actually completed and its findings resolved.

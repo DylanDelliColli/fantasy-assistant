@@ -1,0 +1,14 @@
+{
+  "name": "fantasy-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.13.1" },
+  "scripts": {
+    "prepare": "node scripts/prepare-data.mjs",
+    "start": "node src/server.mjs",
+    "test": "node --test --test-concurrency=1 tests/unit/*.test.mjs tests/integration/*.test.mjs",
+    "rehearse": "node scripts/rehearse.mjs"
+  },
+  "devDependencies": { "playwright": "1.63.0" }
+}

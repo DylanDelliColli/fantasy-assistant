@@ -14,6 +14,10 @@ Planning epic: `fantasy-p55` tracks the personal Sleeper fantasy football
 assistant and its approved execution backlog.
 Workflow: `/home/ddc/.claude/skills/abacus-plan/SKILL.md`.
 
+Current stage: **ARCHITECTURE awaiting approval**. FRAMING and revised RESEARCH
+are approved. Earlier sections preserve what was known at their gates; the
+ARCHITECTURE section carries the current proposal and open questions.
+
 ## FRAMING
 
 Status: **Approved** by the operator on 2026-09-08: "approve the framing".
@@ -172,7 +176,9 @@ children and execution remain downstream of the required planning gates.
 
 ## RESEARCH
 
-Status: Complete for operator review; approval pending. Upstream authority is
+Status: **Approved** by the operator on 2026-09-08: "perfect. Continue on".
+Approval follows the verified Sleeper ADP/statistics revision at `308192c`.
+Upstream authority is
 the FRAMING section approved on 2026-09-08 and committed at `5a4fb23`.
 
 Producer: the default researcher role was supplied by the isolated
@@ -378,15 +384,407 @@ must re-derive every path and discard stale groups.
 
 ### Operator decisions and gate
 
-- **Q7:** Approve Sleeper as the primary provider for state, identity, ADP,
-  projections, and historical stats, with a private FantasyPros half-PPR
-  snapshot as supplementary expert rankings and tiers? FFC is removed from the
-  proposed nightly setup; no paid API dependency is proposed.
+- **Q7:** Resolved by research approval: Sleeper is the primary provider for
+  state, identity, ADP, projections, and historical stats; a private FantasyPros
+  half-PPR snapshot supplies optional supplementary rankings and tiers. FFC is
+  removed from tonight's setup; no paid API dependency is proposed.
 - **Q9:** Local browser on this computer, or a hosted link for another device?
   Local delivery is recommended for tonight; the operator's answer is pending.
-- **Q10:** Approve reversible local drafted-player corrections as the fallback
-  for observed feed lag? They do not submit picks to Sleeper.
-- **Q11:** Approve these research findings and constraints before ARCHITECTURE?
+- **Q10:** Research approval carries forward the proposed reversible local
+  correction fallback. Its exact controls and reconciliation rules will be
+  presented for architecture approval. It never submits picks to Sleeper.
+- **Q11:** Resolved: research approved on 2026-09-08; ARCHITECTURE authorized.
 
 No new application code was written. Research verifies source feasibility, not
 the completed application's performance or a live-draft freshness guarantee.
+
+## ARCHITECTURE
+
+Status: Complete proposal for operator review; approval pending. Upstream:
+FRAMING approved at `5a4fb23`; revised RESEARCH at `308192c` approved by
+"perfect. Continue on" on 2026-09-08. This section specifies the design to
+lock at this gate. No application implementation or TEST-STRATEGY has started.
+
+Producer substitution: the orchestrator produced this section inline under
+the abacus-plan substitution rule. Gaudi's existing-tree review requires
+implementation children; this Full workflow creates those in DECOMPOSITION.
+Its new-feature mode is explicitly unimplemented. Its interface and tradeoff
+guidance informed this review, but this is not a completed Gaudi epic-mode
+audit. The workflow mismatch was captured with jot.
+
+### Decision summary and delivery assumption
+
+Build a single-user Node 24 application with a plain browser page. One local
+process prepares and retains source data, checks Sleeper in the background,
+and computes recommendations in memory. The browser displays one board from
+that process. A recommendation never waits for a provider fetch or a model
+response. Use ordinary JavaScript ESM, built-in HTTP and filesystem support,
+and no production dependency for the initial runtime. Development dependencies
+for real browser verification belong in TEST-STRATEGY.
+
+**Q9 remains an explicit operator choice:** the proposed delivery is
+`http://127.0.0.1:3000` on this computer. The preference was asked asynchronously
+again when architecture began. This proposal makes that local deployment
+reviewable; approval of this architecture explicitly confirms it. A hosted
+link would change storage, access control, and source delivery, and requires
+revision of this section before approval. Silence is not approval.
+
+One preparation command, `npm run prepare`, uses the supplied league and user
+as defaults and writes a validated private snapshot. `npm start` opens the
+serving process; README gives the browser URL and how to keep the computer
+awake during the draft. No database, Supabase migration, account system,
+subscription, cloud deployment, or Sleeper credential is required by this
+local design. Historical stats support a player detail view only; weekly
+management remains outside tonight's release.
+
+```mermaid
+flowchart LR
+  S[Sleeper identities, ADP, projections, stats] --> P[Prepare and validate]
+  F[Optional FantasyPros ranks and tiers] --> P
+  P --> D[Private snapshot on disk]
+  L[Sleeper draft and picks] --> R[Background refresh]
+  R --> T[Accepted draft state]
+  C[Reversible local corrections] --> T
+  D --> E[Recommendation rules]
+  T --> E
+  E --> B[Browser shortlist and roster]
+  B --> C
+```
+
+### Source contract and preparation
+
+Sleeper supplies every canonical player ID and the required league/draft
+state. Use the expanded 2026 projection response verified in RESEARCH so each
+ADP/projection value keeps its row update time. Use the 2025 actual-stat
+response for optional historical context. The compact projection response and
+FFC are not part of the initial importer. ECR is optional supplementary draft
+opinion, not an identity authority or a requirement to start the assistant.
+
+`prepareData(options) -> Promise<Snapshot>` owns retrieval, normalization,
+validation, and publication. It either publishes a complete valid snapshot or
+leaves the preceding snapshot intact. Inputs include the league/user IDs,
+data directory, optional saved player-map path with its original fetch time,
+and whether to include the FantasyPros personal snapshot. No browser request
+performs preparation. Source URL overrides are limited to test composition;
+the shipped configuration uses the verified provider routes.
+
+Preparation invariants:
+
+- Validate the actual league season, user ownership, active draft ID, snake
+  order, round count, roster slots, scoring settings, and no traded picks or
+  assigned keepers. Support this verified 14-team, 13-round configuration.
+  Changed draft shape, traded picks, or keepers produces a clear unsupported
+  configuration result; do not silently use the old pick schedule. Store the
+  full scoring settings and a fingerprint of load-bearing configuration.
+- Source season comes from the league, not the system clock or a global NFL
+  season endpoint. All external IDs remain strings; roster/slot numbers must
+  be validated integers. The ID-to-roster mapping must resolve Kijuuu to
+  roster 5 and draft slot 1 for this prepared configuration.
+- Reuse a player map fetched within 24 hours, including the already downloaded
+  research map when implementing today. Record its original fetch time when
+  importing it. Never refresh the full map per pick, per tab, or per restart.
+- Preserve all identities for interpreting picks; automatic candidates require
+  `active=true`, a current NFL team, and at least one supported fantasy
+  position. DEF uses its team key and team display name. This tightens the
+  research eligibility assumption: 2,040 cached rows have active status,
+  a supported position, and non-sentinel ADP; 777 also have a current team.
+  Six ECR top-400 matches lack a current team and are excluded from automatic
+  recommendations, with the reason retained in the import report. The
+  400-player identity audit remains valid; it is not the eligibility count.
+- Normalize absent, non-finite, non-positive, or sentinel 999 ADP to null.
+  Missing projected/actual points are null, not zero. Accept actual zero
+  points as zero. Reject duplicate source IDs and wrong-season responses.
+- Require at least 400 uniquely identified, current-team, active candidates
+  with usable Sleeper ADP, including at least 14 QB, 42 RB, 42 WR, 14 TE,
+  14 K, and 14 DEF. These are preparation coverage floors, not recommended
+  roster counts. The cached response exceeds these floors. A failed required
+  import preserves the prior snapshot and reports exactly which check failed.
+- ECR normalization uses only the deterministic matching rules and two
+  reviewed ID aliases in RESEARCH. Extract the embedded JSON object without
+  executing page scripts. Require 2026/week 0/HALF data, unique IDs/ranks,
+  and unique Sleeper matches for the top 400 before enabling ECR mode.
+  Quarantine unresolved lower ranks. An unavailable or invalid optional ECR
+  source selects an explicitly labeled Sleeper-ADP mode; it does not block
+  preparation or borrow an unlabeled mixture of old and new ranks.
+- Historical stats are optional and cannot invalidate usable current ADP.
+  Keep the actual season, source URL, fetch time, and nullable row update
+  times distinct from projection provenance. Do not infer per-game values
+  from the observed inconsistent `gp` field.
+- Preserve each provider's scoring label. Display `pts_half_ppr` as
+  "Sleeper half-PPR projection", not an exact total under every custom league
+  rule. Show actual league settings separately. Tonight's recommendations
+  do not implement a new statistical projection or custom scoring model.
+- Cache raw data privately under `.local/sources/`; publish the normalized
+  `.local/snapshot.json` by a same-directory temporary-file rename. Exclude
+  `.local/` and raw provider copies from Git and static assets. Serving routes
+  expose the normalized board only. A failed refresh never deletes usable data.
+
+`Snapshot` has `schemaVersion=1`, `snapshotId`, `preparedAt`, `config`,
+`configFingerprint`, `sources`, `playersById`, `rankingMode`, and `importReport`.
+Each normalized player carries identity/eligible positions/team, active and
+injury fields with player-map fetch time, nullable Sleeper ADP/projection and
+prior actual stats with provenance, and nullable ECR rank/tier/source ID.
+Source metadata contains the URL, requested season/scoring, fetch time,
+available provider update time(s), and whether validation succeeded. Numeric
+values are never inferred from a missing field. A reader rejects an unsupported
+schema version without rewriting the file.
+
+### Draft state, refresh, and local correction contract
+
+`fetchDraftSnapshot(config) -> Promise<DraftSnapshot>` requests the specific
+draft's detail and complete picks list. Its result has a local request sequence,
+request/check times, draft metadata, and normalized picks keyed by `pickNo`.
+Normalize `roster_id` from the pick itself; if absent, use the verified
+`draft_slot -> roster_id` mapping. Do not depend on `picked_by`, which the
+[official pick documentation](https://docs.sleeper.com/#get-all-picks-in-a-draft)
+permits to be empty. Validate identity, unique pick numbers/player IDs, legal
+ranges and slots, and a contiguous sequence from pick 1. Out-of-order array
+rows may be sorted; an actual gap is an invalid snapshot. Unknown player IDs
+are still excluded from availability. An unknown player on the operator's
+roster prevents confident roster recommendations until identity is resolved;
+the available-player board and explanatory status remain usable.
+
+Use the active draft's rounds and order, never `league.settings.draft_rounds`.
+For one-based round `r` and slot `s` in `N` teams, a pick is
+`(r-1)*N + (r odd ? s : N-s+1)`. With the approved mapping the user's
+schedule is 1,28,29,56,57,84,85,112,113,140,141,168,169. Accepted picks and local
+own-pick corrections determine which of those selections remain. Show the
+first two remaining selections; a generic local "taken" marker cannot advance
+the clock or change the operator roster.
+
+`reconcileDraft(previousState, incomingSnapshot) -> DraftState` and
+`applyLocalAction(state, action) -> DraftState` are pure functions: their
+outputs depend only on their inputs. One session owner serializes updates,
+persists them, increments a revision, and builds the new board. The UI never
+implements a second roster or recommendation calculation.
+
+| Incoming situation | Required behavior |
+| --- | --- |
+| Initial valid read or unchanged accepted list | Accept the initial list; for an unchanged list update check metadata only. Never label unchanged data as proof of upstream freshness. |
+| Valid list extends all accepted picks without changing them | Accept the complete new list and rebuild availability and roster from it. Match and retire confirmed local corrections. |
+| Earlier request completes after a later state revision | Ignore its obsolete result; it cannot overwrite an action or newer accepted fetch. |
+| Fewer picks, a changed player/owner at an existing pick, or a draft-shape change | Retain the usable board and show "Sleeper board changed — review" with the difference. A non-extension may be a commissioner undo or cached older data; do not guess which. |
+| User chooses "Use this Sleeper board" on a pending non-extension | Accept exactly the reviewed pending snapshot revision, rebuild the roster, and clear local corrections at/after its first changed pick. Clear unassigned taken markers because their timing is unknown. Show what was cleared. Shape changes instead require preparing again. |
+| HTTP error, timeout, invalid JSON/schema, or partial/gapped snapshot | Retain accepted data and corrections; show failure and last successful check. Never replace it with an empty board. |
+
+Local actions are visible in a compact pending-corrections list with Undo:
+
+- **Mark taken:** `{kind: "taken", playerId}` removes an observed player from
+  suggestions without assigning a pick or owner. It disappears once an
+  accepted Sleeper snapshot contains that player. Undo only removes this local
+  exclusion; it cannot undo an official pick.
+- **Record my pick:** `{kind: "my-pick", playerId, pickNo}` requires the next
+  unfilled selection in the operator's schedule, with that pick number shown
+  before submission. It excludes the player, adds them to the effective own
+  roster, and advances the next-two-pick display immediately. It does not fill
+  gaps in the official count or assert that the user is on the clock. This
+  enables advice for pick 29 immediately after locally recording pick 28.
+- If an accepted extension confirms a local own-pick, retire it without
+  duplicating the player. If Sleeper assigns that slot a different player or
+  assigns the locally recorded player to someone else, remove the conflicting
+  correction and show the specific change. Official accepted ownership wins.
+  Recompute the roster from the remaining official and local selections.
+- Reject duplicate player corrections, occupied own slots, non-owned or out-of-
+  sequence slots, unknown IDs, and requests based on an obsolete board revision.
+  "Undo" and "Use this Sleeper board" affect the assistant only.
+
+Poll upstream every five seconds after a successful cycle; do not overlap
+cycles or multiply polling per browser tab. Timeout each draft/picks request
+after four seconds. Failures use 10,20,40,60-second delays, capped at 60;
+honor a longer valid `Retry-After`. Manual Refresh uses the same single-flight
+cycle and respects the retry deadline. A successful valid cycle resets delay.
+Recheck league configuration/rosters/traded-pick assumptions at preparation,
+startup, and on explicit context refresh; inspect draft metadata each cycle.
+Keep checking a complete draft every 30 seconds to observe an undo/reopen.
+These intervals are design choices, not measured Sleeper publication latency.
+
+Persist accepted state and corrections together under
+`.local/drafts/<draftId>/session.json`, with schema/config identity and revision.
+Only one application process owns that directory; startup acquires an exclusive
+process lock and refuses a second writer. Recover a stale lock only after
+checking that its PID is no longer alive. On restart, load the valid persisted
+board as stale and then refresh. Invalid state produces an explicit recovery
+message and is not silently overwritten. Disk write failure keeps the previous
+durable state and reports the failed action; never acknowledge a correction
+that was not saved. Mutations and persistence are serialized in the session
+owner, including responses that arrive while a user action is being saved.
+
+### Recommendation contract
+
+`recommend(snapshot, effectiveDraftState) -> RecommendationResult` is a pure,
+deterministic calculation. Return up to three distinct candidates with evidence
+and reasons; return fewer only when fewer eligible candidates remain. Do not
+perform HTTP, disk access, random selection, or model inference inside it.
+When roster identity/configuration is unresolved or no legal completion exists,
+return a specific unavailable reason and the browseable player board instead
+of pretending to have a valid personalized shortlist.
+
+With no accepted or persisted pick snapshot, show preparation data with draft
+availability marked unknown; do not assume everyone is still available. When
+the operator has no remaining selections, return an empty shortlist and a
+completed-draft summary. Existing roster choices that exceed assistant policy
+limits do not disable unrelated candidates; apply a position cap only when
+the new candidate would add another player at that capped position.
+
+Policy version `draft-v1` is an explicit, reviewable heuristic; it is not a
+learned model, a win probability, or a claim of optimal drafting:
+
+1. Remove officially picked and locally excluded players. Require current-team
+   fantasy eligibility and at least ECR or usable ADP. An injury tag is shown
+   with its source age; null does not mean healthy. Do not invent injury news,
+   recovery dates, or a season-long penalty from a weekly status label.
+2. Assign the existing own players to starting slots with a maximum matching:
+   one player can fill one slot, and FLEX accepts RB/WR/TE. Among equally large
+   assignments prefer dedicated positions before FLEX, then stable slot/player
+   order. Bench has four places; the reserve slot is not an extra draft pick.
+   This prevents a multi-position player or FLEX from being counted twice.
+3. For each candidate, simulate adding them. Reject candidates that leave more
+   unfilled starting slots than remaining own selections or cannot complete
+   those slots from the remaining eligible pool. Do not recommend a second K
+   or DEF, or more than two QB/TE. These are assistant draft policies, not
+   assertions about Sleeper's position-limit enforcement.
+4. Defer a backup QB/TE while any offensive starting slot remains open. Defer
+   K/DEF until the user's final two selections unless completion constraints
+   force that position earlier. These groups sort after ordinary candidates;
+   they remain available if needed to produce the shortlist.
+5. In ECR mode, order ordinary candidates by ECR tier, then whether adding the
+   player fills an empty starter, then overall ECR rank, Sleeper ADP, and stable
+   player ID. A roster need may reorder a tier but cannot move a later tier
+   ahead of an earlier tier except for steps 3–4. Candidates missing ECR sort
+   after ranked players and then by ADP; never fabricate an expert tier.
+6. In ADP-only mode, sort by groups of 12 places in the ordinal ADP order,
+   starter fit within that group, exact ADP, then player ID. This small-group
+   roster preference is a heuristic, visibly labeled "Sleeper ADP-based";
+   the groups are not expert tiers or point-value differences.
+7. Emit evidence such as "ECR 18 · tier 3", "fills your second WR slot",
+   "Sleeper ADP 25.4", and "your next picks: 28, 29". Projection and prior
+   actual points appear as labeled context in player details. Raw projected
+   points never compare QB/WR/K draft value, and ADP never generates survival
+   percentages. Missing data displays an em dash with no invented reason.
+
+At pick 1 the actual roster is empty. After pick 1, remaining own selections
+start at 28 and 29. After an official or local own-pick at 28, recompute for
+29 using that player in the roster. Do not recommend the pair as independent
+choices from the same unchanged state or delay recomputation until all prior
+opponent picks become visible. The schedule is context, not a verified timer.
+
+### Browser and HTTP contract
+
+One page opens with league name, half-PPR/roster summary, observed pick count,
+next two own selections, three recommendation cards, and the current own
+roster. Each card has name/team/position, two short evidence-based reasons,
+ADP/ECR labels as available, and any source injury tag. A searchable available
+player list supports position filters, player detail, Mark taken, and Record
+my pick. Refresh, corrections/Undo, source ages, and any pending board change
+remain visible without hiding the shortlist. Use ordinary keyboard-operable
+controls and status text; color is not the only status indicator.
+
+The preparation view explains the same draft policy: prioritize ranked value
+within roster constraints, show the long gap from 1 to 28 and consecutive
+turns thereafter, and reserve room to complete starters. It does not add
+mock simulation, speculative opponents, projected survival, or a chat panel.
+
+| Route | Contract |
+| --- | --- |
+| `GET /api/board` | Immediately return one `BoardView` from memory with `Cache-Control: no-store`; no external fetch. Include schema version, board revision, snapshot/ranking mode, league summary, draft status, next picks, own roster, recommendations, normalized player list, source ages, last check/last change, correction list, and pending-change summary. |
+| `POST /api/refresh` | Start/join the bounded refresh cycle or report its next retry time; return immediately. No per-click parallel cycle. |
+| `POST /api/actions` | Validate `{expectedRevision, action}` for taken/my-pick/undo/accept-pending. Persist a valid local action and return the new board. Return 409 for obsolete revision, 422 for an invalid action, and a structured error if persistence fails. |
+| `GET /`, fixed JS/CSS paths | Serve only allowlisted application assets. Never serve arbitrary filesystem paths or `.local/` contents. |
+
+Requests with unknown routes/methods fail explicitly. Parse bounded JSON bodies;
+render provider strings as text, not HTML. Bind only to loopback; reject foreign
+Host/Origin on local mutations and use JSON requests from the same origin.
+There is no generic provider proxy, arbitrary URL fetch route, or upstream
+write route. All Sleeper requests made by this application use GET.
+
+The browser fetches `/api/board` every second while visible, with one request
+in flight, plus immediately after actions or regaining visibility. It renders
+only newer board revisions and preserves the current DOM/keyboard focus when
+data is unchanged. Age labels advance locally. Failed browser requests retain
+the displayed board and mark connection loss. This is resilience to internet
+or local connection loss while open, not a promise that a closed page can be
+reopened after the local process stops.
+
+Freshness has separate meanings: source update/fetch time, last successful
+Sleeper check, last observed pick-list change, and browser connection health.
+Display failure immediately, and mark the check overdue after 15 seconds
+without a successful cycle. During normal checks say "Checked …; Sleeper may
+lag". Do not manufacture a green "live" guarantee, infer staleness just because
+no pick changed, or show a precise countdown from a scheduled start time.
+
+### Ownership, interfaces, and tradeoffs
+
+All paths below are planned new files. A module is a piece of code with one
+owned responsibility; its interface is what its callers must know, including
+errors and ordering. The ownership below keeps provider changes out of the
+browser and keeps roster rules in one calculation.
+
+| Owner and planned files | Public responsibility |
+| --- | --- |
+| `scripts/prepare-data.mjs`; `src/data/sources.mjs` | CLI plus `prepareData(options)`; source retrieval/normalization/reporting. |
+| `src/data/identity.mjs` | `matchEcrPlayers(ecrRows, playersById)`; exact ID joins, reviewed aliases, and quarantine. |
+| `src/data/snapshot.mjs` | `loadSnapshot(path)` and `writeJsonAtomic(path, value)`; schema checks and atomic private-file persistence shared by snapshot/session owners. |
+| `src/sleeper/client.mjs` | `loadContext(options)` and `fetchDraftSnapshot(config)`; documented state HTTP, identifier/config normalization, timeout and response validation. |
+| `src/draft/state.mjs` | `reconcileDraft`, `applyLocalAction`, `deriveEffectiveDraft`; accepted snapshots, pending changes, correction reconciliation, pick schedule. |
+| `src/draft/roster.mjs`; `src/draft/recommend.mjs` | `assignRoster`, completion feasibility, and `recommend`; deterministic matching/policy/reasons. |
+| `src/session.mjs` | `openSession(options) -> {getBoard, refresh, act, close}`; single owner of refresh timers, state revision, serialized persistence, lock, and board construction. |
+| `src/server.mjs` | `createApp({session})`; fixed HTTP routes and static files, loopback startup and graceful shutdown. Domain decisions remain in their owners. |
+| `src/contracts.mjs` | Shared JSDoc record shapes and schema/policy version constants; no second validation engine, source fetches, or omnibus utilities. |
+| `web/index.html`; `web/app.mjs`; `web/styles.css` | Render `BoardView`, filters and local action requests. No independent ranking or roster logic. |
+| `package.json`; `.gitignore`; `README.md` | Runtime commands, private-data exclusions, setup, data attribution, usage/recovery instructions. |
+
+Tradeoffs proposed for approval:
+
+- **Periodic reads instead of pushed updates:** the application asks Sleeper
+  for full snapshots on a timer. This matches the verified HTTP interface and
+  permits recovery from missed picks; it cannot eliminate provider caching.
+- **Background network work with immediate local reads:** refreshes may take
+  seconds while the last usable board remains available. This favors quick
+  consultation over requiring a fresh provider response for each view.
+- **Private files and one stateful process:** the process remembers accepted
+  picks/corrections and saves them to disk. This is small enough for the
+  single-user draft; a hosted or multi-user version would revisit ownership,
+  access, and persistence rather than inheriting an accidental public cache.
+- **Batch preparation, incremental consultation:** import the large source
+  files before drafting and recompute only from the prepared pool and accepted
+  state during turns. Source replacement is explicit, not a mid-turn surprise.
+- **Explainable draft rules:** ordinal ranks/ADP and roster constraints drive
+  the shortlist. This is reproducible and fast, but it does not estimate a
+  player's true advantage over replacement or optimize a season outcome.
+
+### Risks, changed research assumptions, and gate
+
+There is no application to migrate or existing source smell to refactor. The
+main design risks are duplicate domain rules in the browser, a server file
+absorbing all responsibilities, and hidden mixing of official/local state.
+The module ownership, single session owner, and explicit correction contract
+address those risks without adding a plugin framework or a general database.
+
+Research changes made explicit: local Node/browser is now the concrete proposal;
+the expanded Sleeper response is selected over the compact route; ECR is truly
+optional with an ADP-only mode; current-team filtering tightens eligibility;
+five-second polling and bounded backoff replace a provisional cadence; and
+rollback requires an explicit reviewed local action because two cached reads
+cannot prove a commissioner undo. `src/session.mjs` is a new ownership need
+missing from the provisional fingerprints. Core/UI bundle candidates remain
+provisional until approved architecture and DECOMPOSITION re-derive write sets.
+
+The official [Node HTTP documentation](https://nodejs.org/docs/latest-v24.x/api/http.html)
+supports the proposed runtime facilities; the actual installed runtime was
+verified as 24.13.1 during research. This is a design choice, not implementation
+or performance evidence. The ten-second usability target and live feed latency
+remain unmeasured. The next gated stage will specify unit, real HTTP/filesystem,
+and browser composition coverage within the 30-second suite budget.
+
+- **Q9:** Confirm the proposed local browser on this computer, or request a
+  hosted revision. This is included in architecture signoff, not silently
+  marked resolved by an unanswered preference question.
+- **Q10:** Approve the concrete assistant-only correction/undo behavior above,
+  including immediate roster updates for the 28/29 turn and review of rollbacks.
+- **Q12 — Architecture signoff:** Approve this local runtime, source contracts,
+  recommendation policy, state reconciliation, persistence, and browser flow
+  before TEST-STRATEGY. Any requested change is revised and committed first.
+
+Validation for this gate is documentation/tracker validation only: [no-test],
+because no application code was created. The full test contract belongs to the
+next approved stage, not a test suite claimed to exist now.

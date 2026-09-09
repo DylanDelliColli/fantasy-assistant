@@ -11,6 +11,8 @@ import {recommend} from '../../src/draft/recommend.mjs';
 import {upstream} from '../helpers/upstream.mjs';
 import {DRAFT,NOW,pick} from '../fixtures/sleeper.mjs';
 import {rankingsFixture,rankingsHtml,effectiveFixture} from '../fixtures/rankings.mjs';
+import {openSession} from '../../src/session.mjs';
+import {runtimeFixture,until} from '../helpers/runtime.mjs';
 
 async function setup(t){
  const u=await upstream(t),dir=await mkdtemp(join(tmpdir(),'fantasy-rules-'));
@@ -112,4 +114,62 @@ test('real non-extension needs exact pending adoption, clearing local correction
  assert.deepEqual(f.board(state).ownRoster.map(p=>p.id),['10043']);assert.deepEqual(f.board(state).nextPicks,[28,29]);
  const effective=deriveEffectiveDraft(state,f.source.config);assert.ok(!effective.unavailableIds.includes('10041'));assert.ok(!effective.unavailableIds.includes('10152'));
  assert.equal(f.board(state).candidates.length,3);
+});
+
+test('session keeps unknown versus accepted empty distinct and retains the usable board across500/429/malformed/gapped/hanging responses',async t=>{
+ const f=await runtimeFixture(t),session=await openSession({...f.options,autoRefresh:false});t.after(()=>session.close());
+ assert.equal(session.getBoard().draft.availabilityKnown,false);assert.equal(session.getBoard().candidates.length,0);
+ await session.refresh();assert.equal(session.getBoard().draft.availabilityKnown,true);assert.deepEqual(session.getBoard().nextPicks,[1,28]);
+ f.routes[f.picksPath]=[pick(1,'10041')];await session.refresh();const before=session.getBoard();
+ for(const response of [{status:500,body:'secret body'},{status:429,headers:{'Retry-After':'20'}},{body:'{broken'},{body:JSON.stringify([pick(2,'10042')])}]){
+  f.responses.set(f.picksPath,response);await session.refresh();const failed=session.getBoard();
+  assert.equal(failed.revision,before.revision);assert.equal(failed.draft.officialCount,1);assert.deepEqual(candidateIds(failed),candidateIds(before));
+  assert.equal(failed.freshness.connection,'error');assert.ok(failed.freshness.lastError);assert.doesNotMatch(JSON.stringify(failed.error),/secret body|127\.0\.0\.1|stack/);
+  f.responses.clear();await f.clock.advance(failed.refresh.retryAt-f.clock.now());await until(()=>!session.getBoard().refresh.inflight);
+ }
+ const held=f.hold(f.picksPath),pending=session.refresh();await held.entered;await f.clock.advance(4000);await pending;held.release();
+ assert.equal(session.getBoard().draft.officialCount,1);assert.equal(session.getBoard().freshness.connection,'error');assert.ok(f.requests.every(r=>r.method==='GET'));
+});
+test('session completed polling uses30s/40s, immediate failure and observed reopen restores5s/15s',async t=>{
+ const f=await runtimeFixture(t);f.c.draft.status='complete';const session=await openSession({...f.options,autoRefresh:false});t.after(()=>session.close());await session.refresh();
+ assert.equal(session.getBoard().refresh.nextRefreshAt,f.clock.now()+30000);
+ await f.clock.advance(29999);assert.equal(session.getBoard().freshness.overdue,false);
+ await f.clock.advance(1);await until(()=>!session.getBoard().refresh.inflight);assert.equal(session.getBoard().freshness.overdue,false);
+ const held=f.hold(f.picksPath),poll=session.refresh();await held.entered;f.clock.jump(39999);assert.equal(session.getBoard().freshness.overdue,false);
+ f.clock.jump(1);assert.equal(session.getBoard().freshness.overdue,true);held.release();await poll;
+ f.responses.set(f.picksPath,{status:500});await session.refresh();assert.equal(session.getBoard().freshness.overdue,true);
+ f.responses.clear();f.c.draft.status='drafting';await f.clock.advance(10000);await until(()=>!session.getBoard().refresh.inflight);
+ assert.equal(session.getBoard().draft.status,'drafting');assert.equal(session.getBoard().refresh.nextRefreshAt,f.clock.now()+5000);
+ f.clock.jump(14999);assert.equal(session.getBoard().freshness.overdue,false);f.clock.jump(1);assert.equal(session.getBoard().freshness.overdue,true);
+});
+test('held older poll cannot overwrite newer persisted local28; session pending adoption needs current token',async t=>{
+ const f=await runtimeFixture(t);f.routes[f.picksPath]=[pick(1,'10041')];const session=await openSession({...f.options,autoRefresh:false});t.after(()=>session.close());await session.refresh();
+ const held=f.hold(f.picksPath);f.routes[f.picksPath]=[pick(1,'10041'),pick(2,'10042')];const poll=session.refresh();await held.entered;
+ const changed=await session.act({expectedRevision:session.getBoard().revision,action:{type:'my-pick',pickNo:28,playerId:'10151'}});held.release();await poll;
+ assert.equal(session.getBoard().revision,changed.revision);assert.equal(session.getBoard().draft.officialCount,1);assert.deepEqual(session.getBoard().nextPicks,[29,56]);
+ await session.refresh();assert.equal(session.getBoard().draft.officialCount,2);
+ f.routes[f.picksPath]=[pick(1,'10041')];await session.refresh();const token=session.getBoard().pending.revision;
+ f.routes[f.picksPath]=[];await session.refresh();assert.ok(session.getBoard().pending.revision>token);
+ await assert.rejects(session.act({expectedRevision:session.getBoard().revision,action:{type:'accept-pending',pendingRevision:token}}),e=>e.status===409);
+ await session.act({expectedRevision:session.getBoard().revision,action:{type:'accept-pending',pendingRevision:session.getBoard().pending.revision}});
+ assert.equal(session.getBoard().pending,null);assert.equal(session.getBoard().draft.officialCount,0);assert.equal(session.getBoard().corrections.length,0);assert.deepEqual(session.getBoard().nextPicks,[1,28]);
+});
+test('startup/explicit context and each-cycle draft shape changes require preparation without losing browsing',async t=>{
+ const f=await runtimeFixture(t),session=await openSession({...f.options,autoRefresh:false});t.after(()=>session.close());await session.refresh();
+ const before=session.getBoard();f.c.league.scoring_settings.rush_yd=0.2;await session.refresh({context:true});
+ assert.equal(session.getBoard().error.code,'PREPARE_REQUIRED');assert.equal(session.getBoard().candidates.length,0);assert.equal(session.getBoard().players.length,400);assert.equal(session.getBoard().draft.availabilityKnown,true);
+ assert.equal(session.getBoard().draft.officialCount,before.draft.officialCount);await session.close();
+ const held=f.hold(`/v1/league/${f.source.config.leagueId}`);
+ const restarted=await openSession({...f.options,autoRefresh:false});t.after(()=>restarted.close());
+ const startup=restarted.refresh();await held.entered;
+ try{
+  assert.equal(restarted.getBoard().candidates.length,0);assert.equal(restarted.getBoard().error.code,'PREPARE_REQUIRED');
+  assert.equal(restarted.getBoard().players.length,400);assert.equal(restarted.getBoard().freshness.stale,true);
+  assert.equal(restarted.getBoard().revision,before.revision);
+ }finally{held.release();await startup;}
+ await restarted.refresh();assert.equal(restarted.getBoard().error.code,'PREPARE_REQUIRED');await restarted.close();
+ f.c.league.scoring_settings.rush_yd=0.1;
+ // A separately prepared private directory has no sticky prior mismatch.
+ const g=await runtimeFixture(t),other=await openSession({...g.options,autoRefresh:false});t.after(()=>other.close());await other.refresh();g.c.draft.settings.rounds=12;await other.refresh();
+ assert.equal(other.getBoard().error.code,'PREPARE_REQUIRED');assert.equal(other.getBoard().candidates.length,0);assert.equal(other.getBoard().players.length,400);
 });

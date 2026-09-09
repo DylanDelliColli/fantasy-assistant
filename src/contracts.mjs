@@ -204,4 +204,23 @@ export const POSITIONS = Object.freeze(['QB', 'RB', 'WR', 'TE', 'K', 'DEF']);
  * @property {Correction[]} corrections
  * @property {Object|null} pending
  * @property {Object} freshness Source times, successful checks, changed picks and connection state.
+ * @property {DraftNotice[]} notices
+ * @property {{inflight:boolean,retryAt:number|null,nextRefreshAt:number|null,failures:number}} refresh Epoch-ms deadlines, never an upstream freshness promise.
+ * @property {{code:string,message:string}|null} error Sanitized recovery, persistence or upstream error.
+ */
+/**
+ * @typedef {Object} SessionOptions
+ * @property {string} [dataDirectory] Private root containing snapshot.json and drafts/<draftId>/.
+ * @property {Object} [sourceUrls] In-process fixture overrides for the real GET-only client.
+ * @property {{now:Function,setTimeout:Function,clearTimeout:Function}} [clock] Polling/check clock, ordinary time by default.
+ * @property {boolean} [autoRefresh] False exposes restoration before a manual initial check.
+ * @property {Function} [beforeRename] Optional observer/barrier after actual temp-file sync, before atomic rename.
+ * @property {Function} [onRefreshQueued] Optional notification after the real client result joins the serialized queue.
+ */
+/**
+ * @typedef {Object} Session
+ * @property {function(): BoardView} getBoard Synchronous retained board independent of provider latency.
+ * @property {function(Object=): Promise<BoardView>} refresh Single flight; optional context revalidation.
+ * @property {function(Object): Promise<BoardView>} act Acknowledges only after durable publication.
+ * @property {function(): Promise<void>} close Stops scheduling, drains owned work and releases only its own lock.
  */

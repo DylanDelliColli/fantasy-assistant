@@ -52,13 +52,14 @@ export async function loadSnapshot(file, expected = {}) {
   return validateSnapshot(JSON.parse(await readFile(file,'utf8')), expected);
 }
 /** Publish via an exclusive same-directory temporary file. Failed writes/renames never remove the destination. */
-export async function writeJsonAtomic(file, value) {
+export async function writeJsonAtomic(file, value, {beforeRename} = {}) {
   const json=JSON.stringify(value);
   if(json===undefined)throw new Error('Cannot write undefined JSON');
   const directory=dirname(file);await mkdir(directory,{recursive:true,mode:0o700});
   const temporary=join(directory,`.${basename(file)}.${randomUUID()}.tmp`);let handle;
   try {
     handle=await open(temporary,'wx',0o600);await handle.writeFile(json+'\n','utf8');await handle.sync();await handle.close();handle=null;
+    await beforeRename?.({file,temporary});
     await rename(temporary,file);
   } finally {
     if(handle)await handle.close();

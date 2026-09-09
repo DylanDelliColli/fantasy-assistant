@@ -7,8 +7,8 @@ lifecycle: active
 
 Private, GET-only preparation, deterministic recommendations and a persistent
 local HTTP session for the supplied 2026 Sleeper league are implemented.
-`npm start` serves the JSON board; browser assets and `npm run rehearse` belong
-to the next implementation bead and are not available yet. The accepted scope and
+`npm start` serves a browser board beside Sleeper; `npm run rehearse` launches
+an isolated fictional draft for practicing picks 1, 28 and 29. The accepted scope and
 ownership contract live in [ADR 0001](docs/adr/0001-local-draft-assistant.md).
 
 ## Setup and verification
@@ -19,7 +19,7 @@ Playwright **1.63.0** is a pinned development dependency.
 ```sh
 npm ci --ignore-scripts
 PLAYWRIGHT_BROWSERS_PATH=.local/browsers npx playwright install chromium
-npm test
+PLAYWRIGHT_BROWSERS_PATH=.local/browsers npm test
 ```
 
 `--ignore-scripts` matters: npm recognizes the requested `prepare` command as
@@ -30,10 +30,12 @@ No global installation or system dependency change is needed for this checkout.
 
 Tests use fictional players, real temporary files and a loopback HTTP server on
 an OS-assigned port. They never call live providers. `npm test` runs all unit and
-integration files serially with Node's test runner. Its total budget is 30
+integration files with two isolated Node test processes at a time. Each fixture
+owns its temporary state and loopback ports. The complete command's budget is 30
 seconds. In a sandbox that restricts child processes or loopback listeners,
-run the same command with the normal execution permission escalation. A matching
-Chromium launch/DOM/close smoke is separate from application browser coverage.
+run the same command with the normal execution permission escalation.
+The suite includes four real Chromium scenarios and an executable rehearsal
+Enter/quit test, with complete process and browser startup/teardown.
 
 ## Prepare private data
 
@@ -140,8 +142,8 @@ revision/review,422 an invalid action, and500 a persistence/recovery failure.
 Malformed JSON, bodies over16KiB and unsupported content types return400/413/415.
 Mutation Host must match the local listener; a supplied Origin must match its
 exact HTTP origin. A local client may omit Origin. No permissive CORS or generic
-proxy/write route exists. Static serving uses only the four fixed browser paths;
-until the browser bead supplies assets, those paths return404.
+proxy/write route exists. Static serving exposes only the four fixed browser paths: the page, its
+JavaScript, its stylesheet and the index alias.
 
 Each draft has one PID/token lock and `session.json` under
 `.local/drafts/<draftId>/`. A second live owner is refused. A stale lock is
@@ -185,5 +187,70 @@ Successful HTTP checks cannot establish that Sleeper itself is current.
   loopback entry used by `npm start`. Fixture URLs/clocks and observation hooks
   are in-process options, not public HTTP or CLI upstream overrides.
 
-Human ten-second draft-choice timing remains unmeasured. Source tests and browser
-setup verification do not establish that product outcome.
+## Use the browser beside Sleeper
+
+Open `http://127.0.0.1:3000` after `npm start`. The shortlist displays the server's
+three recommendations, source-grounded reasons, own roster, observed official
+pick count and next two own picks. Use ranked value across the long 1→28 gap,
+then reassess between consecutive turns 28/29; starter completion remains part
+of the server policy. Search by name/team, filter by position, and open Details
+for separately labeled projection, prior actual points and injury context.
+All controls support keyboard navigation and Enter.
+
+Make official selections in Sleeper. **Record my pick** and **Mark taken** are
+assistant-only corrections. Recording local pick 28 immediately updates the
+roster and next pick to 29; matching official confirmation removes the correction
+without duplicating the selection. **Undo** reverses a local correction. If
+Sleeper removes or changes accepted picks, review the displayed removed/added
+diff before **Use this Sleeper board** adopts that exact version. A changed
+review or stale action displays an unsaved error and fetches the current board;
+it never automatically repeats your mutation. Disk failures remain unsaved.
+
+The browser checks this local server every second while visible and when you
+return or take an action. Multiple tabs share the server's upstream poller. The keyboard-operable
+**Refresh** button asks that same bounded server refresh to run, then observes
+the board; it joins in-flight work and respects retry delays.
+Successful-check age, last pick-change age, source fetch and source update times
+are distinct. App disconnection retains the last displayed board and advances
+its age locally. A checked board still carries the Sleeper lag caveat. Unknown
+initial availability has no shortlist; a validated zero-pick board enables pick-1
+advice. Prepare-required, recovery, failure and completion messages come from
+the server. Stop the app before preparing changed configuration again; preserve
+old session evidence and resolve incompatible saved state deliberately.
+
+## Rehearse without touching live data
+
+```sh
+npm run rehearse
+```
+
+Open the printed free loopback URL. The league starts **REHEARSAL** and uses
+fictional players and synthetic ranks under the approved league configuration.
+Its printed private state directory is owned temporary storage, separate from
+live `.local/`. Only the local fixture provider receives GET requests.
+
+1. Record any own pick 1 in the browser, then press Enter in the launcher terminal
+   to confirm that actual choice. Premature Enter explains which own pick is needed.
+2. Press Enter again for opponent picks through 27, including an earlier suggestion.
+3. Record your own pick 28 in the browser, then Enter to confirm it.
+4. Record your own pick 29, then Enter to confirm it.
+5. Type `q` or `quit` and Enter. The launcher closes its server and removes its
+   temporary files. Return to the separately running live app URL, or run
+   `npm start` against your prepared private directory.
+
+EOF also closes the launcher. Rehearsal does not write to Sleeper or change the
+live app. Automated stage/browser timings do not measure human choice speed;
+the human ten-second choice metric remains **unmeasured**.
+
+## Pre-draft checklist
+
+- Prepare the authorized league/user data, check source times and whether ranks
+  are ECR + ADP or ADP only, and keep `.local/` and source exports private.
+- Open the live app beside Sleeper; verify league, half-PPR, roster 5, slot 1,
+  14 teams, 13 rounds and next own picks. Resolve preparation/recovery errors.
+- Check successful refresh status and its lag caveat; compare observed picks
+  with Sleeper. Practice the separate REHEARSAL flow if needed, then quit it.
+- Confirm you can search, inspect details and reverse a local correction with
+  Undo. Review any changed-board diff deliberately before adoption.
+- Draft in Sleeper. Use local corrections only to keep this assistant aligned;
+  retain error/recovery evidence rather than treating a failed save as success.

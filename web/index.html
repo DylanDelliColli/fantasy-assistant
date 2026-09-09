@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Draft companion</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main>
+    <header class="masthead">
+      <div><p class="eyebrow">Your draft companion · local only</p><h1 id="league">Opening your draft…</h1><p id="league-summary"></p></div>
+      <div class="turn"><span>Next own picks</span><strong id="next-picks">—</strong><span id="observed"></span></div>
+    </header>
+    <section class="connection" aria-label="Connection and freshness">
+      <p id="draft-status" role="status">Connecting to the local app…</p>
+      <button id="refresh" type="button">Refresh</button>
+      <div class="ages"><span>Successful check <b id="last-check">—</b></span><span>Last pick change <b id="last-change">—</b></span><span>Prepared <b id="prepared">—</b></span></div>
+    </section>
+    <p id="action-error" role="alert" hidden></p>
+    <div class="draft-grid">
+      <section aria-labelledby="shortlist-title"><div class="section-title"><h2 id="shortlist-title">Your shortlist</h2><span id="ranking-mode"></span></div><div id="candidates"></div>
+        <details class="preparation"><summary>How to use the shortlist</summary><p>Start with ranked value. Plan for the long gap from pick 1 to 28, then reassess at consecutive turns 28 and 29. The server keeps starter completion possible as your roster fills. Compare source context; these are recommendations, not survival odds. Make your official selection in Sleeper.</p></details>
+      </section>
+      <aside aria-label="Your roster and local corrections"><h2>Your roster</h2><div id="own-roster"></div><h3>Assistant corrections</h3><div id="corrections"></div><div id="notices"></div></aside>
+    </div>
+    <section id="pending" aria-label="Changed Sleeper board" hidden></section>
+    <section aria-labelledby="players-title" class="player-section">
+      <div class="section-title"><h2 id="players-title">Find a player</h2><span id="player-count"></span></div>
+      <div class="filters"><label>Search players<input id="search" type="search" autocomplete="off" placeholder="Name or team"></label><label>Position<select id="position"><option value="ALL">All positions</option><option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>K</option><option>DEF</option></select></label></div>
+      <div class="table-scroll"><table><thead><tr><th>Player</th><th>ADP</th><th>Availability</th><th>Assistant actions</th></tr></thead><tbody id="players"></tbody></table></div>
+    </section>
+    <details class="sources"><summary>Source update and fetch times</summary><div id="source-ages"></div><p>Sleeper identities, ADP, half-PPR projections and prior actual points; optional FantasyPros half-PPR ECR. Projection and history are provider context, not custom-league scores. Missing injury information is not a health guarantee. Data stays private on this machine.</p></details>
+    <footer>Recommendations only. No picks or transactions are sent to Sleeper.</footer>
+  </main>
+  <dialog aria-labelledby="detail-title"><h2 id="detail-title"></h2><div id="detail-body"></div><button id="close-details">Close details</button></dialog>
+  <script type="module">import {initApp} from '/app.mjs'; initApp();</script>
+</body>
+</html>

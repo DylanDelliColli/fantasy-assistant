@@ -29,11 +29,12 @@ export function controlledClock(t){
  t.mock.method(AbortSignal,'timeout',ms=>{const controller=new AbortController();deadlines.set(++sequence,{at:time+ms,fn:()=>controller.abort(new DOMException('Request timed out','TimeoutError'))});return controller.signal;});
  t.after(()=>{timers.clear();deadlines.clear();});return clock;
 }
-export async function runtimeFixture(t){
+export async function runtimeFixture(t,{configure,controlled=true}={}){
  const u=await upstream(t),dir=await mkdtemp(join(tmpdir(),'fantasy-session-'));
  t.after(()=>rm(dir,{recursive:true,force:true}));
+ await configure?.(u);
  await runPrepare(['--data-dir',dir],{sourceUrls:u.sourceUrls,now:()=>Date.parse(NOW)});
- const source=await loadSnapshot(join(dir,'snapshot.json')),clock=controlledClock(t);
+ const source=await loadSnapshot(join(dir,'snapshot.json')),clock=controlled?controlledClock(t):{now:Date.now,setTimeout,clearTimeout};
  return {...u,dir,source,clock,options:{dataDirectory:dir,sourceUrls:u.sourceUrls,clock},
   sessionDirectory:join(dir,'drafts',DRAFT),file:join(dir,'drafts',DRAFT,'session.json'),lock:join(dir,'drafts',DRAFT,'session.lock'),picksPath:`/v1/draft/${DRAFT}/picks`};
 }

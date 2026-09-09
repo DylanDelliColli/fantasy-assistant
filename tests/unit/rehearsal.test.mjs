@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import {advanceStage} from '../../scripts/rehearse.mjs';
 import {contextFixture,sourceFixture} from '../fixtures/sleeper.mjs';
 import {normalizeContext,normalizePicks} from '../../src/sleeper/client.mjs';
+import {rehearsalStartup} from '../helpers/browser.mjs';
+
+const url='http://127.0.0.1:43210',directory='/tmp/fantasy-session-abcdef';
+for(const [label,output,expected] of [
+ ['empty output','',null],
+ ['partial URL','REHEARSAL\nOpen http://127.0.0.1:43',null],
+ ['URL without state',`REHEARSAL\nOpen ${url}\n`,null],
+ ['partial directory without newline',`REHEARSAL\nOpen ${url}\nPrivate rehearsal state: /tmp/fantasy-session-abc`,null],
+ ['complete LF records',`REHEARSAL\nOpen ${url}\nPrivate rehearsal state: ${directory}\nStage 0: Choose.\n`,{url,directory}],
+ ['complete CRLF records',`REHEARSAL\r\nOpen ${url}\r\nPrivate rehearsal state: ${directory}\r\nStage 0: Choose.\r\n`,{url,directory}],
+])test(`rehearsal startup waits for complete records: ${label}`,()=>{
+ assert.deepEqual(rehearsalStartup(output),expected);
+});
+
 const source={config:normalizeContext(contextFixture()),playersById:sourceFixture().players};
 test('rehearsal stages0/1/27/28/29 preserve actual own choices and remove an earlier suggestion with valid unique picks',()=>{
  let stage=0,state={accepted:{picks:[]},corrections:[{type:'my-pick',pickNo:1,playerId:'10041'}]},prior=[];

@@ -48,3 +48,8 @@ export async function browserFixture(t,browser,options={}){
   settle:async()=>{await page.locator('main[aria-busy="false"]').waitFor();await until(()=>requests.every(r=>r.complete));}};
 }
 export async function keyboard(button){await button.focus();await button.press('Enter');}
+
+export function rehearsalStartup(output){
+ const match=output.match(/^Open (http:\/\/127\.0\.0\.1:\d+)\r?\nPrivate rehearsal state: ([^\r\n]+)\r?\n/m);
+ return match?{url:match[1],directory:match[2]}:null;
+}

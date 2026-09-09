@@ -43,6 +43,9 @@ test('Chromium1: actual preparation, search/details and keyboard own1/28/29, opp
  const f=await browserFixture(t,browser);await f.open();assert.equal(await f.page.locator('#league').textContent(),'Fictional league');
  assert.match(await f.page.locator('#league-summary').textContent(),/14 teams.*half-PPR.*13 rounds/i);assert.equal(await cards(f.page).count(),3);await next(f.page,'1 · 28');
  await search(f.page,'Fictional QB 0');await f.page.getByLabel('Position').selectOption('QB');
+ assert.deepEqual(await f.page.locator('#players tr').evaluateAll(rows=>rows.map(row=>row.dataset.playerId)),['10001']);
+ await search(f.page,'');assert.equal(await f.page.locator('#players [data-player-id="10041"]').count(),0);assert.equal(await f.page.locator('#players [data-player-id="10002"]').count(),1);
+ await search(f.page,'Fictional QB 0');
  await keyboard(f.page.locator('#players [data-player-id="10001"] button[data-details]'));
  assert.match(await f.page.getByRole('dialog').textContent(),/Sleeper half-PPR projection\s*0/);assert.match(await f.page.getByRole('dialog').textContent(),/Prior actual points\s*90/);
  assert.match(await f.page.getByRole('dialog').textContent(),/Not reported/);await f.page.getByRole('button',{name:'Close details'}).click();
@@ -50,7 +53,6 @@ test('Chromium1: actual preparation, search/details and keyboard own1/28/29, opp
  f.routes[f.picksPath]=[pick(1,'10041')];await f.session.refresh();await f.read();
  const removed=f.session.getBoard().candidates[0].playerId;
  f.routes[f.picksPath]=[pick(1,'10041'),pick(2,removed),...Array.from({length:25},(_,i)=>pick(i+3,String(10200+i)))];await f.session.refresh();await f.read();
- assert.equal(await cards(f.page).filter({has:f.page.locator(`[data-player-id="${removed}"]`)}).count(),0);
  assert.equal(await f.page.locator(`#candidates [data-player-id="${removed}"]`).count(),0);
  await search(f.page,'Fictional WR 0');await keyboard(own(f.page,'10151'));await next(f.page,'29 · 56');
  assert.match(await f.page.locator('#own-roster').textContent(),/Fictional WR 0/);assert.equal(f.session.getBoard().draft.officialCount,27);
@@ -95,7 +97,13 @@ test('Chromium3: exact rollback, HTTP errors, held read/action races, focus coal
  await keyboard(own(f.page,'10041'));await next(f.page,'28 · 29');older.release.release();await f.settle();await next(f.page,'28 · 29');
  // Action N is held before HTTP consumption. Metadata GET N+1 arrives first; newer same-session action still wins.
  await search(f.page,'Fictional WR 0');const action=f.holdApp('/api/actions','POST','request');await keyboard(own(f.page,'10151'));await action.entered.promise;
- await f.session.refresh();await f.read();const metadataView=f.session.getBoard().viewRevision;action.release.release();await next(f.page,'29 · 56');assert.ok(Number(await f.page.locator('body').getAttribute('data-view'))>metadataView);
+ await f.session.refresh();await f.read();const metadataView=f.session.getBoard().viewRevision;
+ // The action response must update the display before its follow-up GET can repair it.
+ const postAction=f.holdApp('/api/board','GET','request');
+ try{
+  action.release.release();await postAction.entered.promise;
+  await next(f.page,'29 · 56');assert.ok(Number(await f.page.locator('body').getAttribute('data-view'))>metadataView);
+ }finally{postAction.release.release();}
  // Restart B supplies a never-applied GET; restart C supplies a newer action with a lower view counter.
  await f.settle();const priorSessionView=Number(await f.page.locator('body').getAttribute('data-view'));await f.restart();const unseen=f.holdApp();await f.page.evaluate(()=>window.dispatchEvent(new Event('focus')));await unseen.entered.promise;
  await f.restart();const currentSession=f.session.getBoard().sessionId;await search(f.page,'Fictional RB 1');await keyboard(f.page.locator('#players [data-player-id="10042"] button[data-action="taken"]'));

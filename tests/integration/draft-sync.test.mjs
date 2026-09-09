@@ -159,7 +159,15 @@ test('startup/explicit context and each-cycle draft shape changes require prepar
  const before=session.getBoard();f.c.league.scoring_settings.rush_yd=0.2;await session.refresh({context:true});
  assert.equal(session.getBoard().error.code,'PREPARE_REQUIRED');assert.equal(session.getBoard().candidates.length,0);assert.equal(session.getBoard().players.length,400);assert.equal(session.getBoard().draft.availabilityKnown,true);
  assert.equal(session.getBoard().draft.officialCount,before.draft.officialCount);await session.close();
- const restarted=await openSession({...f.options,autoRefresh:false});t.after(()=>restarted.close());await restarted.refresh();assert.equal(restarted.getBoard().error.code,'PREPARE_REQUIRED');await restarted.close();
+ const held=f.hold(`/v1/league/${f.source.config.leagueId}`);
+ const restarted=await openSession({...f.options,autoRefresh:false});t.after(()=>restarted.close());
+ const startup=restarted.refresh();await held.entered;
+ try{
+  assert.equal(restarted.getBoard().candidates.length,0);assert.equal(restarted.getBoard().error.code,'PREPARE_REQUIRED');
+  assert.equal(restarted.getBoard().players.length,400);assert.equal(restarted.getBoard().freshness.stale,true);
+  assert.equal(restarted.getBoard().revision,before.revision);
+ }finally{held.release();await startup;}
+ await restarted.refresh();assert.equal(restarted.getBoard().error.code,'PREPARE_REQUIRED');await restarted.close();
  f.c.league.scoring_settings.rush_yd=0.1;
  // A separately prepared private directory has no sticky prior mismatch.
  const g=await runtimeFixture(t),other=await openSession({...g.options,autoRefresh:false});t.after(()=>other.close());await other.refresh();g.c.draft.settings.rounds=12;await other.refresh();

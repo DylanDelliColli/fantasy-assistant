@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {openSession,retryDelay,isOverdue,isProcessAlive} from '../../src/session.mjs';
 import {runtimeFixture,until} from '../helpers/runtime.mjs';
+import {readFile} from 'node:fs/promises';
 
 test('retry policy is10/20/40/60 capped and honors only longer valid Retry-After',()=>{
  const now=Date.parse('2026-09-08T18:00:00Z');
@@ -74,4 +75,26 @@ test('saved empty acceptance restores known pick1 advice as stale, while a fresh
  assert.equal(saved.draft.availabilityKnown,true);assert.equal(saved.draft.officialCount,0);assert.deepEqual(saved.nextPicks,[1,28]);assert.equal(saved.candidates.length,3);
  assert.equal(saved.freshness.stale,true);assert.equal(saved.revision,before.revision);assert.notEqual(saved.sessionId,before.sessionId);
  await session.refresh();assert.equal(session.getBoard().freshness.stale,false);
+});
+
+for(const origin of ['context','shape'])test(`C1 ${origin} invalidation survives held startup without advancing the action revision`,async t=>{
+ const f=await runtimeFixture(t);let session=await openSession({...f.options,autoRefresh:false});t.after(()=>session.close());
+ await session.refresh();const before=session.getBoard();assert.equal(before.candidates.length,3);
+ if(origin==='context')f.c.league.scoring_settings.rush_yd=0.25;else f.c.draft.settings.rounds=12;
+ await session.refresh({context:origin==='context'});const invalid=session.getBoard();
+ assert.equal(invalid.error.code,'PREPARE_REQUIRED');assert.equal(invalid.candidates.length,0);assert.equal(invalid.players.length,400);
+ assert.equal(invalid.revision,before.revision);assert.ok(invalid.viewRevision>before.viewRevision);
+ assert.equal(invalid.freshness.lastCheckAt,before.freshness.lastCheckAt);assert.equal(invalid.freshness.lastChangedAt,before.freshness.lastChangedAt);
+ await assert.rejects(session.act({expectedRevision:before.revision,action:{type:'my-pick',pickNo:1,playerId:'10041'}}),e=>e.status===422);
+ await session.close();const bytes=await readFile(f.file),held=f.hold(`/v1/league/${f.source.config.leagueId}`);
+ session=await openSession(f.options);const startup=session.refresh();await held.entered;
+ try{
+  const restored=session.getBoard();assert.equal(restored.candidates.length,0);assert.equal(restored.error.code,'PREPARE_REQUIRED');
+  assert.equal(restored.players.length,400);assert.equal(restored.draft.availabilityKnown,true);assert.equal(restored.draft.officialCount,0);
+  assert.equal(restored.freshness.stale,true);assert.equal(restored.revision,before.revision);assert.notEqual(restored.sessionId,invalid.sessionId);
+  await assert.rejects(session.act({expectedRevision:restored.revision,action:{type:'my-pick',pickNo:1,playerId:'10041'}}),e=>e.status===422);
+  assert.deepEqual(await readFile(f.file),bytes);const saved=JSON.parse(bytes);
+  assert.equal(saved.requiresPreparation,true);assert.equal(saved.revision,before.revision);assert.deepEqual(saved.accepted.picks,[]);assert.deepEqual(saved.corrections,[]);
+ }finally{held.release();await startup;}
+ assert.equal(session.getBoard().error.code,'PREPARE_REQUIRED');assert.ok(f.requests.every(r=>r.method==='GET'));
 });

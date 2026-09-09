@@ -121,6 +121,7 @@ export async function openSession(options={}){
  let state=createDraftState(source),restored=false,recovery=false,visibleError=null;
  try{state=restore(JSON.parse(await readFile(file,'utf8')),source);restored=true;}
  catch(e){if(e.code!=='ENOENT'){recovery=true;visibleError=error('RECOVERY_REQUIRED','Saved session needs recovery; its bytes have been preserved.');}}
+ let persistedPreparation=state.requiresPreparation;
  let viewRevision=0,inflight=null,timer=null,closing=null,closed=false,failures=0,retryAt=null,nextRefreshAt=null,needsContext=true;
  let requestSequence=state.lastRequestSequence,queue=Promise.resolve();
  let effective=deriveEffectiveDraft(state,source.config),advice=recommend(source,effective),lastOverdue;
@@ -144,6 +145,7 @@ export async function openSession(options={}){
   if(recovery)throw visibleError;
   try{await writeJsonAtomic(file,serialize(next),{beforeRename:options.beforeRename});}
   catch{visibleError=error('PERSISTENCE_FAILED','Unable to save the local draft state.');bump();throw visibleError;}
+  persistedPreparation=next.requiresPreparation;
   const changed=next.revision!==state.revision||next.requiresPreparation!==state.requiresPreparation;
   state=next;visibleError=null;if(changed)refreshAdvice();bump();
  }
@@ -177,6 +179,8 @@ export async function openSession(options={}){
     if(incoming.error){
      const changed=next.requiresPreparation!==state.requiresPreparation;state=next;
      if(!recovery)visibleError=incoming.issue;if(changed)refreshAdvice();bump();
+     // Keep known incompatibility disabled even if saving fails; retry its durability, not every error's metadata.
+     if(state.requiresPreparation&&!persistedPreparation)await commit(state);
     }else{await commit(next);restored=false;}
    });
    options.onRefreshQueued?.({requestSequence:sequence});

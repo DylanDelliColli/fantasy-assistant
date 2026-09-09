@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile,writeFile,mkdir,rename,rm} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,rename,rm,readdir} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {watch} from 'node:fs';
 import {openSession} from '../../src/session.mjs';
-import {runtimeFixture,barrier} from '../helpers/runtime.mjs';
+import {runtimeFixture,barrier,until} from '../helpers/runtime.mjs';
 import {pick} from '../fixtures/sleeper.mjs';
+import {createApp} from '../../src/server.mjs';
 
 async function child(code,args=[]){
  const p=spawn(process.execPath,['--input-type=module','-e',code,...args],{stdio:['ignore','pipe','pipe']});let out='',err='';
@@ -87,4 +88,81 @@ test('deferred real atomic rename serializes an arriving HTTP result behind the 
  assert.equal(session.getBoard().revision,before.revision+1);assert.equal(session.getBoard().draft.officialCount,1);assert.deepEqual(session.getBoard().nextPicks,[29,56]);
  assert.equal(JSON.parse(await readFile(f.file,'utf8')).corrections.length,1);
  await session.refresh();assert.equal(session.getBoard().draft.officialCount,2);assert.equal(session.getBoard().corrections.length,1);
+});
+
+async function serveSession(t,session){
+ const app=createApp({session});app.listen(0,'127.0.0.1');await once(app,'listening');t.after(()=>app.shutdown());
+ const base=`http://127.0.0.1:${app.address().port}`;
+ return {app,board:async()=>{const r=await fetch(base+'/api/board');assert.equal(r.status,200);return r.json();},
+  act:async body=>{const r=await fetch(base+'/api/actions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});return {status:r.status,body:await r.json()};}};
+}
+for(const origin of ['context','shape'])test(`C1 ${origin} invalidation rejects HTTP own-pick across held restart and preserves saved picks/corrections`,async t=>{
+ const f=await runtimeFixture(t);f.routes[f.picksPath]=[pick(1,'10041')];
+ let session=await openSession({...f.options,autoRefresh:false});t.after(()=>session.close());let http=await serveSession(t,session);
+ await session.refresh();await session.act({expectedRevision:session.getBoard().revision,action:{type:'my-pick',pickNo:28,playerId:'10151'}});
+ const before=await http.board(),original=JSON.parse(await readFile(f.file,'utf8'));
+ const action={expectedRevision:before.revision,action:{type:'my-pick',pickNo:29,playerId:'10152'}};
+ if(origin==='context')f.c.league.scoring_settings.rush_yd=0.25;else f.c.draft.settings.rounds=12;
+ await session.refresh({context:origin==='context'});const invalid=await http.board();
+ assert.equal(invalid.error.code,'PREPARE_REQUIRED');assert.equal(invalid.candidates.length,0);assert.equal(invalid.players.length,400);
+ assert.equal(invalid.revision,before.revision);assert.ok(invalid.viewRevision>before.viewRevision);
+ const bytes=await readFile(f.file);assert.equal((await http.act(action)).status,422);assert.deepEqual(await readFile(f.file),bytes);
+ await http.app.shutdown();const held=f.hold(`/v1/league/${f.source.config.leagueId}`);
+ session=await openSession(f.options);const startup=session.refresh();http=await serveSession(t,session);await held.entered;
+ try{
+  const restored=await http.board(),reply=await http.act(action),after=await readFile(f.file);
+  assert.equal(reply.status,422,'known incompatible own-pick must remain rejected before startup validation responds');
+  assert.equal(reply.body.error.code,'INVALID_ACTION');assert.equal(reply.body.revision,before.revision);
+  assert.equal(restored.error.code,'PREPARE_REQUIRED');assert.equal(restored.candidates.length,0);assert.equal(restored.players.length,400);
+  assert.equal(restored.freshness.stale,true);assert.notEqual(restored.sessionId,before.sessionId);assert.equal(restored.revision,before.revision);
+  assert.deepEqual(restored.ownRoster,before.ownRoster);assert.deepEqual(restored.corrections,before.corrections);assert.deepEqual(restored.nextPicks,[29,56]);
+  assert.deepEqual(after,bytes);const saved=JSON.parse(after);assert.equal(saved.requiresPreparation,true);
+  assert.equal(saved.revision,original.revision);assert.deepEqual(saved.accepted,original.accepted);assert.deepEqual(saved.corrections,original.corrections);
+ }finally{held.release();await startup;}
+ assert.equal((await http.board()).error.code,'PREPARE_REQUIRED');assert.ok(f.requests.every(r=>r.method==='GET'));await http.app.shutdown();
+});
+for(const origin of ['context','shape'])test(`C1 ${origin} invalidation save conflict retains bytes and disabled advice, then retries the unsaved flag`,async t=>{
+ const f=await runtimeFixture(t);let session=await openSession({...f.options,autoRefresh:false});t.after(()=>session.close());
+ await session.refresh();await session.act({expectedRevision:session.getBoard().revision,action:{type:'taken',playerId:'10151'}});
+ const before=session.getBoard(),bytes=await readFile(f.file),original=JSON.parse(bytes);
+ await rename(f.file,f.file+'.retained');await mkdir(f.file);await writeFile(f.file+'/sentinel','retain this conflict');
+ if(origin==='context')f.c.league.scoring_settings.rush_yd=0.25;else f.c.draft.settings.rounds=12;
+ const failed=await session.refresh({context:origin==='context'});
+ assert.equal(failed.error.code,'PERSISTENCE_FAILED','failed invalidation save must not be reported as durable success');
+ assert.doesNotMatch(failed.error.message,/EISDIR|ENOTEMPTY|fantasy-session/);assert.equal(failed.candidates.length,0);assert.equal(failed.players.length,400);
+ assert.equal(failed.revision,before.revision);assert.ok(failed.viewRevision>before.viewRevision);assert.deepEqual(failed.corrections,before.corrections);
+ await assert.rejects(session.act({expectedRevision:before.revision,action:{type:'my-pick',pickNo:1,playerId:'10041'}}),e=>e.status===422);
+ assert.deepEqual(await readFile(f.file+'.retained'),bytes);assert.equal(await readFile(f.file+'/sentinel','utf8'),'retain this conflict');
+ assert.equal((await readdir(f.sessionDirectory)).some(p=>p.endsWith('.tmp')),false);
+ await rm(f.file,{recursive:true});await rename(f.file+'.retained',f.file);
+ // Retry must save the already-known invalidation even when the new error is only transient.
+ f.c.league.scoring_settings.rush_yd=0.1;f.c.draft.settings.rounds=13;f.responses.set(f.picksPath,{status:500});
+ await f.clock.advance(10000);await until(()=>!session.getBoard().refresh.inflight);
+ const recovered=await readFile(f.file),saved=JSON.parse(recovered);
+ assert.equal(saved.requiresPreparation,true);assert.equal(saved.revision,original.revision);
+ assert.deepEqual(saved.accepted,original.accepted);assert.deepEqual(saved.corrections,original.corrections);
+ assert.equal(session.getBoard().error.code,'PREPARE_REQUIRED');assert.equal(session.getBoard().candidates.length,0);
+ // Once durable, further transient errors must not broaden into metadata writes.
+ await f.clock.advance(20000);await until(()=>!session.getBoard().refresh.inflight);assert.deepEqual(await readFile(f.file),recovered);
+ await session.close();session=await openSession({...f.options,autoRefresh:false});
+ assert.equal(session.getBoard().error.code,'PREPARE_REQUIRED');assert.equal(session.getBoard().candidates.length,0);
+ assert.deepEqual(session.getBoard().corrections,before.corrections);assert.equal(session.getBoard().revision,before.revision);
+ assert.ok(f.requests.every(r=>r.method==='GET'));
+});
+test('C1 compatible transient failure leaves saved empty bytes intact and permits an own-pick during held startup',async t=>{
+ const f=await runtimeFixture(t);let session=await openSession({...f.options,autoRefresh:false});t.after(()=>session.close());
+ await session.refresh();const before=session.getBoard(),bytes=await readFile(f.file);
+ f.responses.set(f.picksPath,{status:500});await session.refresh();
+ assert.equal(session.getBoard().error.code,'UPSTREAM_ERROR');assert.equal(session.getBoard().candidates.length,3);assert.deepEqual(await readFile(f.file),bytes);
+ await session.close();f.responses.clear();const held=f.hold(`/v1/league/${f.source.config.leagueId}`);
+ session=await openSession(f.options);const startup=session.refresh(),http=await serveSession(t,session);await held.entered;
+ try{
+  const restored=await http.board();assert.equal(restored.error,null);assert.equal(restored.candidates.length,3);assert.equal(restored.players.length,400);
+  assert.equal(restored.freshness.stale,true);assert.equal(restored.draft.availabilityKnown,true);assert.equal(restored.draft.officialCount,0);
+  assert.equal(restored.revision,before.revision);assert.deepEqual(restored.nextPicks,[1,28]);
+  const reply=await http.act({expectedRevision:restored.revision,action:{type:'my-pick',pickNo:1,playerId:'10041'}});assert.equal(reply.status,200);
+  const saved=JSON.parse(await readFile(f.file,'utf8'));assert.equal(saved.requiresPreparation,false);assert.equal(saved.revision,before.revision+1);
+  assert.deepEqual(saved.accepted.picks,[]);assert.equal(saved.corrections.length,1);assert.equal(saved.corrections[0].playerId,'10041');
+ }finally{held.release();await startup;}
+ assert.ok(f.requests.every(r=>r.method==='GET'));await http.app.shutdown();
 });

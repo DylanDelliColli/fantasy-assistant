@@ -10,6 +10,7 @@ import {createDraftState,reconcileDraft,applyLocalAction,deriveEffectiveDraft} f
 import {recommend} from '../../src/draft/recommend.mjs';
 import {upstream} from '../helpers/upstream.mjs';
 import {DRAFT,NOW,pick} from '../fixtures/sleeper.mjs';
+import {rankingsFixture,rankingsHtml,effectiveFixture} from '../fixtures/rankings.mjs';
 
 async function setup(t){
  const u=await upstream(t),dir=await mkdtemp(join(tmpdir(),'fantasy-rules-'));
@@ -27,6 +28,31 @@ async function setup(t){
 }
 function action(state,extra){return applyLocalAction(state,{expectedRevision:state.revision,...extra});}
 const candidateIds=board=>board.candidates.map(c=>c.playerId);
+
+for(const mode of ['ecr','adp-only'])test(`prepared ${mode} unranked exact ADP beats opposing lexical IDs within one group`,async t=>{
+ const u=await upstream(t),dir=await mkdtemp(join(tmpdir(),'fantasy-rules-adp-'));
+ t.after(()=>rm(dir,{recursive:true,force:true}));
+ u.s.projections.find(p=>p.player_id==='10044').stats.adp_half_ppr=44.8;
+ u.s.projections.find(p=>p.player_id==='10045').stats.adp_half_ppr=44.2;
+ const ecr=rankingsFixture(u.s.players);ecr.players=[ecr.players[0]];u.routes['/ecr']=rankingsHtml(ecr);
+ await runPrepare(['--data-dir',dir,...(mode==='adp-only'?['--without-ecr']:[])],{sourceUrls:u.sourceUrls,now:()=>Date.parse(NOW)});
+ const source=await loadSnapshot(join(dir,'snapshot.json'));
+ assert.equal(source.rankingMode,mode);assert.equal(Object.keys(source.playersById).length,400);
+ const available=['10044','10045'],pair=available.map(id=>source.playersById[id]);
+ assert.deepEqual(pair.map(p=>p.adp),[44.8,44.2]);assert.deepEqual(pair.map(p=>p.adpBand),[3,3]);
+ assert.ok(pair.every(p=>p.ecrRank===null&&p.ecrTier===null&&p.policyPosition==='RB'&&p.eligible));
+ // Real prepared/reloaded records; constructed effective roster isolates this comparator.
+ // This seam does not represent session persistence or browser behavior.
+ const owned=['10001','10041','10042','10151','10152','10281','10043','10337','ARI'].map(id=>source.playersById[id]);
+ const effective=effectiveFixture(source,{owned,unavailable:Object.keys(source.playersById).filter(id=>!available.includes(id))});
+ const result=recommend(source,effective);
+ assert.equal(result.status,'ready');assert.equal(result.candidates.length,2);
+ assert.ok(result.candidates.every(c=>c.deferral==='ordinary'&&!c.fillsStarter));
+ assert.deepEqual(candidateIds(result),['10045','10044']);
+ assert.deepEqual(result.candidates.map(c=>c.adp),[44.2,44.8]);
+ assert.ok(u.requests.some(r=>r.url==='/projections/nfl/2026?season_type=regular'));
+ assert.ok(u.requests.every(r=>r.method==='GET'));
+});
 
 test('offline without saved acceptance is unknown; real HTTP empty draft enables normal pick1 advice',async t=>{
  const f=await setup(t);let state=createDraftState(f.source);f.failures.add(`/v1/draft/${DRAFT}/picks`);

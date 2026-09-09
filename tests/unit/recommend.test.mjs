@@ -44,6 +44,14 @@ test('ECR ties use rank then exact ADP and lexical ID; missing ECR follows ranke
  const {result}=board(owned,[candidates[0],candidates[3],p('unranked-later','WR',{...noEcr,adp:2})]);
  assert.deepEqual(ids(result),['9','unranked','unranked-later']);assert.equal(result.candidates[1].ecrTier,null);
 });
+for(const mode of ['ecr','adp-only'])test(`${mode} unranked exact ADP beats opposing lexical IDs within one group`,()=>{
+ const candidates=[p('10044','RB',{...noEcr,adp:44.8,adpBand:3}),p('10045','RB',{...noEcr,adp:44.2,adpBand:3})];
+ const {result}=board(fullStarters(),candidates,{mode});
+ assert.equal(result.status,'ready');assert.equal(result.candidates.length,2);
+ assert.ok(result.candidates.every(c=>c.ecrRank===null&&c.ecrTier===null&&c.adpBand===3&&c.deferral==='ordinary'&&!c.fillsStarter));
+ assert.deepEqual(ids(result),['10045','10044']);
+ assert.deepEqual(result.candidates.map(c=>c.adp),[44.2,44.8]);
+});
 test('fixed prepared ADP12/13 bands and lexical ties survive earlier removals',()=>{
  const owned=needingWR();const early=Array.from({length:11},(_,i)=>p(`early-${i}`,'RB',{...noEcr,adp:i+1,adpBand:0}));
  const band12=p('10','RB',{...noEcr,adp:12,adpBand:0}),band13=p('9','WR',{...noEcr,adp:12,adpBand:1});
